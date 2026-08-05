@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="DevPulse interim mark">
+  <rect width="512" height="512" rx="112" fill="#10243e"/>
+  <path d="M72 270h92l42-104 70 190 48-112 28 26h88" fill="none" stroke="#5de2c2" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
