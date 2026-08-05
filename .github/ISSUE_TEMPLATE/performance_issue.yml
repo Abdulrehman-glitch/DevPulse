@@ -1,0 +1,42 @@
+name: Performance issue
+description: Report a measured performance or resource-usage problem.
+title: "[Performance]: "
+labels:
+  - "type: performance"
+  - "status: needs-triage"
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and impact
+    validations:
+      required: true
+  - type: textarea
+    id: workload
+    attributes:
+      label: Reproducible workload
+      description: Describe project count, repository size, action, warm-up, and sample duration without private content.
+    validations:
+      required: true
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Measurements
+      description: Include baseline, observed values, repetitions, and collection method.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include DevPulse version, Windows version, architecture, CPU, and memory.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy review
+      options:
+        - label: I removed personal paths, repository content, and credentials from evidence.
+          required: true
+

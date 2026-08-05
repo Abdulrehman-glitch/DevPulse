@@ -86,6 +86,16 @@ release-output/
 .env
 .env.*
 !.env.example
+.npmrc
+.pypirc
+.netrc
+_netrc
+.cargo/credentials
+.cargo/credentials.toml
+*.jks
+*.keystore
+*.kdbx
+*.log
 
 # Editors and operating systems
 .idea/

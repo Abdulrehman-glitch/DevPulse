@@ -1,0 +1,28 @@
+name: Documentation issue
+description: Report inaccurate, missing, or unclear DevPulse documentation.
+title: "[Docs]: "
+labels:
+  - "type: documentation"
+  - "status: needs-triage"
+  - "area: documentation"
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Document or location
+      placeholder: docs/development/SETUP.md
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Explain what is inaccurate, missing, stale, or difficult to follow.
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Suggested correction and acceptance criteria
+    validations:
+      required: true

@@ -33,6 +33,16 @@ async function update(path, expected) {
   await writeFile(path, expected, "utf8");
 }
 
+async function updatePattern(relative, pattern, replacement) {
+  const path = resolve(root, relative);
+  const current = await readFile(path, "utf8");
+  if (!pattern.test(current)) {
+    throw new Error(`${path} does not contain its expected version location.`);
+  }
+  const expected = current.replace(pattern, replacement);
+  await update(path, expected);
+}
+
 await updateJson("package.json", (value) => {
   value.version = version;
 });
@@ -67,6 +77,11 @@ await update(
     `$1${version}$2`,
   ),
 );
+await updatePattern(
+  "apps/desktop/src-tauri/Cargo.lock",
+  /(\[\[package\]\]\nname = "devpulse-desktop"\nversion = ")[^"]+("\n)/,
+  `$1${version}$2`,
+);
 await update(
   resolve(root, "services/local-core/devpulse_core/_version.py"),
   `"""Generated from the repository VERSION file by scripts/sync-version.mjs."""\n\n__version__ = "${version}"\n`,
@@ -79,6 +94,48 @@ await update(
     /(\[project\][\s\S]*?\nversion = ")[^"]+("\n)/,
     `$1${pythonVersion}$2`,
   ),
+);
+
+await updatePattern(
+  "apps/desktop/src/App.test.tsx",
+  /(\n  version: ")[^"]+(",)/,
+  `$1${version}$2`,
+);
+await updatePattern(
+  "apps/desktop/src/test/fixtures.ts",
+  /(devpulse_version: ")[^"]+("),/,
+  `$1${version}$2,`,
+);
+await updatePattern(
+  "apps/desktop/src/providers/local.ts",
+  /(\n        version: ")[^"]+(",)/,
+  `$1${version}$2`,
+);
+await updatePattern(
+  "apps/desktop/src/pages/SettingsPage.tsx",
+  /(\n  version = ")[^"]+(",)/,
+  `$1${version}$2`,
+);
+await updatePattern(
+  "scripts/inspect-installer.ps1",
+  /(\$Version -ne ")[^"]+("\))/,
+  `$1${version}$2`,
+);
+await updatePattern(
+  "scripts/inspect-installer.ps1",
+  /(pinned to )[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(\.)/,
+  `$1${version}$2`,
+);
+for (const relative of [
+  "scripts/run-upgrade-policy-qa.ps1",
+  "scripts/run-installed-installer-qa.ps1",
+]) {
+  await updatePattern(relative, /(\$Version = ")[^"]+("\n)/, `$1${version}$2`);
+}
+await updatePattern(
+  "scripts/run-performance-matrix.py",
+  /("productVersion": ")[^"]+("),/,
+  `$1${version}$2,`,
 );
 
 if (!check) console.log(`Synchronized DevPulse ${version}.`);

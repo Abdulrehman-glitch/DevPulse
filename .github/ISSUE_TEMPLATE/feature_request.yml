@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a user-facing capability with a concrete problem and bounded scope.
+title: "[Feature]: "
+labels:
+  - "type: feature"
+  - "status: needs-triage"
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user problem without assuming a solution.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and users
+      description: Explain who benefits and what current workflow is insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed scope
+      description: Describe the smallest useful outcome and explicit non-goals.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Provide observable, testable outcomes.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Security, privacy, compatibility, and maintenance risks
+    validations:
+      required: true
+

@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible DevPulse defect that is not a security vulnerability.
+title: "[Bug]: "
+labels:
+  - "type: bug"
+  - "status: needs-triage"
+body:
+  - type: markdown
+    attributes:
+      value: Do not include suspected vulnerabilities, credentials, private repository data, or unredacted personal paths. Follow SECURITY.md for security reports.
+  - type: input
+    id: version
+    attributes:
+      label: DevPulse version
+      placeholder: 0.3.0-alpha.1
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Desktop shell
+        - Frontend
+        - Local sidecar
+        - Project scanner
+        - Installer
+        - Diagnostics or telemetry
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: State what happened and the user impact.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide minimal, deterministic steps using non-sensitive data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and evidence
+      description: Include Windows version, architecture, commands, and redacted diagnostics.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: This report contains no suspected vulnerability or live credential.
+          required: true
+        - label: I reviewed attachments and diagnostics for personal or private data.
+          required: true
+
