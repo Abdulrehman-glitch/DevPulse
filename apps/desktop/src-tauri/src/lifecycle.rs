@@ -912,6 +912,18 @@ fn spawn_core(
                     }
                     break;
                 }
+                _ => {
+                    monitor_app.state::<CoreRuntime>().trace(
+                        "sidecar-unsupported-event",
+                        "Tauri shell reported an unsupported sidecar event",
+                    );
+                    if let Some(sender) = startup_sender.take() {
+                        let _ = sender.send(Err(
+                            "The local service returned an unsupported startup event.".into(),
+                        ));
+                        break;
+                    }
+                }
             }
         }
     });

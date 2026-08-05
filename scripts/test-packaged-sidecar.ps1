@@ -9,6 +9,9 @@ New-Item -ItemType Directory -Force -Path $QaRoot | Out-Null
 $QaRoamingAppData = Join-Path $QaRoot "process-env\roaming"
 $QaLocalAppData = Join-Path $QaRoot "process-env\local"
 $QaWebView2Data = Join-Path $QaRoot "webview2"
+$QaHome = Join-Path $QaRoot "process-env\home"
+$QaTemp = Join-Path $QaRoot "process-env\temp"
+New-Item -ItemType Directory -Force -Path $QaRoamingAppData, $QaLocalAppData, $QaHome, $QaTemp | Out-Null
 $Candidates = @(Get-ChildItem -LiteralPath (Join-Path $Root "apps\desktop\src-tauri\binaries") -File -Filter "*.exe")
 if ($Candidates.Count -ne 1) { throw "Expected exactly one packaged sidecar binary." }
 
@@ -35,6 +38,10 @@ foreach ($Entry in @{
     DEVPULSE_DATA_DIR = $QaRoot
     APPDATA = $QaRoamingAppData
     LOCALAPPDATA = $QaLocalAppData
+    HOME = $QaHome
+    USERPROFILE = $QaHome
+    TEMP = $QaTemp
+    TMP = $QaTemp
     WEBVIEW2_USER_DATA_FOLDER = $QaWebView2Data
 }.GetEnumerator()) {
     $StartInfo.Environment[$Entry.Key] = [string]$Entry.Value
