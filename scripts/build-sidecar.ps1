@@ -24,6 +24,7 @@ $env:PYINSTALLER_CONFIG_DIR = Join-Path $BuildDirectory "config"
 & $Python -m PyInstaller `
     --noconfirm `
     --clean `
+    --log-level WARN `
     --onefile `
     --console `
     --name devpulse-local-core `

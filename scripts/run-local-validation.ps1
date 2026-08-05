@@ -1,9 +1,9 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-# This gate is deliberately installer-free. It may launch only the uninstalled
-# release executable through release:qa and the packaged sidecar through
-# sidecar:test, both of which write under the repository's ignored QA roots.
+# This gate is deliberately installer-free. It launches only the packaged
+# sidecar smoke test; the desktop production executable is built but not run.
+# Generated validation output stays under the repository's ignored QA roots.
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $PreviousPythonPath = $env:PYTHONPATH
 Push-Location $Root
@@ -38,13 +38,14 @@ try {
     if ($OpenApiAfter -ne $OpenApiBefore) {
         throw "OpenAPI generation is not stable; regenerate and review the contract before validation."
     }
-    Invoke-LocalStep "npm production dependency audit" { npm audit --audit-level=high --omit=dev }
-    Invoke-LocalStep "Python dependency audit" { & $Python -m pip_audit -r requirements-ci.lock }
-    $CargoAudit = Get-Content -LiteralPath (Join-Path $Root "evidence\beta1\cargo-audit-summary.json") -Raw | ConvertFrom-Json
-    if ($CargoAudit.vulnerabilitiesFound -or $CargoAudit.actionableVulnerabilityCount -ne 0 -or $CargoAudit.criticalFindings -ne 0 -or $CargoAudit.highFindings -ne 0) {
-        throw "The committed cargo-audit summary contains actionable findings."
+    Invoke-LocalStep "npm complete dependency audit" { npm audit }
+    Invoke-LocalStep "npm production dependency audit" { npm audit --omit=dev }
+    Invoke-LocalStep "Dependency compliance outputs" { & $Python scripts/generate-dependency-compliance.py --check }
+    $WheelDirectory = Join-Path $Root ".qa-runtime\python-dist"
+    New-Item -ItemType Directory -Force -Path $WheelDirectory | Out-Null
+    Invoke-LocalStep "Python package build" {
+        & $Python -m pip wheel --no-deps --no-build-isolation --wheel-dir $WheelDirectory .
     }
-    Write-Host "Cargo audit summary verified: zero actionable findings; cargo-audit executable is not installed locally." -ForegroundColor Yellow
 
     Invoke-LocalStep "Artificial performance matrix" { npm run performance:matrix }
     Invoke-LocalStep "Tauri configuration" { npm run tauri:check }
@@ -55,18 +56,42 @@ try {
 
     Push-Location (Join-Path $Root "apps\desktop\src-tauri")
     try {
+        $PreviousRustFlags = $env:RUSTFLAGS
+        $env:RUSTFLAGS = if ($PreviousRustFlags) { "$PreviousRustFlags -Dwarnings" } else { "-Dwarnings" }
         Invoke-LocalStep "Rust format" { cargo fmt --all -- --check }
         Invoke-LocalStep "Rust check" { cargo check --locked }
+        Invoke-LocalStep "Rust release check" { cargo check --release --locked }
         Invoke-LocalStep "Rust tests" { cargo test --locked }
+        $ClippyInstalled = if (Get-Command rustup -ErrorAction SilentlyContinue) {
+            @(& rustup component list --installed | Where-Object { $_ -like "clippy-*" }).Count -gt 0
+        } else {
+            $false
+        }
+        if ($ClippyInstalled) {
+            Invoke-LocalStep "Rust clippy" { cargo clippy --locked --all-targets -- -D warnings }
+        }
+        else {
+            Write-Warning "Clippy is not installed; install it in an authorised toolchain before relying on this optional lint gate."
+        }
     }
-    finally { Pop-Location }
+    finally {
+        if ($null -eq $PreviousRustFlags) {
+            Remove-Item Env:RUSTFLAGS -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:RUSTFLAGS = $PreviousRustFlags
+        }
+        Pop-Location
+    }
 
     Invoke-LocalStep "SBOM generation" { npm run sbom:generate }
     Invoke-LocalStep "Packaged sidecar build" { npm run sidecar:build }
     Invoke-LocalStep "Packaged sidecar authenticated startup/shutdown" { npm run sidecar:test }
-    Invoke-LocalStep "Uninstalled release executable QA" { npm run release:qa }
+    Invoke-LocalStep "Unbundled production desktop build" {
+        npm --workspace @devpulse/desktop run tauri -- build --no-bundle --ci --no-sign -- --locked
+    }
 
-    Write-Host "`nLocal validation completed. Installer execution was not performed." -ForegroundColor Green
+    Write-Host "`nLocal validation completed. Installer creation and execution were not performed." -ForegroundColor Green
 }
 finally {
     if ($null -eq $PreviousPythonPath) {

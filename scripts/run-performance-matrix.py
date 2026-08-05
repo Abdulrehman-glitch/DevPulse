@@ -141,12 +141,10 @@ def main() -> None:
             "installer lifecycle timings",
         ],
     }
-    destination = ROOT / "evidence" / "beta1"
-    destination.mkdir(parents=True, exist_ok=True)
-    (destination / "performance-results.json").write_text(
-        json.dumps(output, indent=2) + "\n", encoding="utf-8"
-    )
-    print(destination / "performance-results.json")
+    destination = qa_root / "performance-results.json"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
+    print(destination)
 
 
 if __name__ == "__main__":

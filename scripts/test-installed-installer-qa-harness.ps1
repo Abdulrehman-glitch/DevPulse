@@ -3,49 +3,18 @@ Set-StrictMode -Version Latest
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $HarnessPath = Join-Path $Root "scripts\run-installed-installer-qa.ps1"
-$WorkflowPaths = @(Get-ChildItem -LiteralPath (Join-Path $Root ".github\workflows") -File -Filter "*.yml" | Select-Object -ExpandProperty FullName)
+$WorkflowDirectory = Join-Path $Root ".github\workflows"
+$WorkflowPaths = @(
+    if (Test-Path -LiteralPath $WorkflowDirectory -PathType Container) {
+        Get-ChildItem -LiteralPath $WorkflowDirectory -File
+    }
+)
 $RustDesktopPath = Join-Path $Root "apps\desktop\src-tauri\src\lib.rs"
 $Harness = Get-Content -LiteralPath $HarnessPath -Raw
-$Workflow = ($WorkflowPaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw }) -join "`n"
 $RustDesktop = Get-Content -LiteralPath $RustDesktopPath -Raw
 
-if ($WorkflowPaths.Count -ne 1 -or [IO.Path]::GetFileName($WorkflowPaths[0]) -ne "windows-installer-qa.yml") {
-    throw "Exactly one repository workflow is permitted: windows-installer-qa.yml."
-}
-if ($Workflow -notmatch '(?ms)^on:\s*\r?\n\s+workflow_dispatch:\s*(?:\r?\n|$)') {
-    throw "Installer QA must be manual-only through workflow_dispatch."
-}
-foreach ($AutomaticTrigger in @("pull_request:", "pull_request_target:", "push:", "schedule:", "workflow_call:", "workflow_run:", "repository_dispatch:", "release:")) {
-    if ($Workflow -match "(?m)^\s+$([regex]::Escape($AutomaticTrigger))") {
-        throw "Automatic workflow trigger '$AutomaticTrigger' is forbidden."
-    }
-}
-if ($Workflow -notmatch '(?m)^concurrency:\s*$' -or $Workflow -notmatch '(?m)^\s+cancel-in-progress:\s+true\s*$') {
-    throw "Manual installer QA must cancel an accidental duplicate run."
-}
-if ($Workflow -match '(?im)^\s*environment\s*:') { throw "Deployment environments are forbidden." }
-if ($Workflow -match '(?i)\$\{\{\s*secrets\.') { throw "Secret-dependent workflow steps are forbidden." }
-if ($Workflow -match '(?im)^\s*(?:contents|actions|checks|deployments|id-token|packages|pages|pull-requests|security-events|statuses)\s*:\s*write\s*$') {
-    throw "Publishing or write permissions are forbidden."
-}
-if ($Workflow -notmatch '(?ms)^permissions:\s*\r?\n\s+contents:\s+read\s*(?:\r?\n|$)') {
-    throw "Workflow permissions must be explicitly read-only."
-}
-$ActionUses = @([regex]::Matches($Workflow, '(?im)^\s*uses:\s*([^\s#]+)') | ForEach-Object { $_.Groups[1].Value })
-if ($ActionUses.Count -eq 0 -or @($ActionUses | Where-Object { $_ -notmatch '@[0-9a-f]{40}$' }).Count -ne 0) {
-    throw "Every third-party action must be pinned to a full commit SHA."
-}
-if (@([regex]::Matches($Workflow, '(?im)^\s*runs-on:\s*windows-2025\s*$')).Count -ne 2) {
-    throw "Installer QA must contain exactly two standard windows-2025 jobs."
-}
-if (@([regex]::Matches($Workflow, '(?im)^\s*timeout-minutes:\s*45\s*$')).Count -ne 2) {
-    throw "Both installer QA jobs must keep the bounded 45-minute timeout."
-}
-if (@([regex]::Matches($Workflow, '(?im)^\s*persist-credentials:\s*false\s*$')).Count -ne 2) {
-    throw "Both checkouts must disable persisted credentials."
-}
-if ($Workflow -match '(?i)\b(?:gh\s+release|npm\s+publish|cargo\s+publish|twine\s+upload)\b') {
-    throw "Publishing commands are forbidden in installer QA."
+if ($WorkflowPaths.Count -ne 0) {
+    throw "The curated staging repository must not contain a GitHub Actions workflow."
 }
 
 function Assert-Contains([string]$Text, [string]$Needle, [string]$Message) {
@@ -66,9 +35,6 @@ if ($ParseErrors.Count -ne 0) {
 Assert-Contains $Harness '$env:GITHUB_ACTIONS -ne "true"' "Harness lost its GitHub Actions execution gate."
 Assert-Contains $Harness '$env:RUNNER_ENVIRONMENT -ne "github-hosted"' "Harness lost its GitHub-hosted runner-environment gate."
 Assert-Contains $Harness '$env:DEVPULSE_DISPOSABLE_RUNNER -ne "github-hosted"' "Harness lost its disposable-runner gate."
-Assert-Contains $Workflow "runs-on: windows-2025" "Installer QA is not pinned to the GitHub-hosted Windows image."
-if ($Workflow -match '(?im)^\s*runs-on:\s*\[?\s*self-hosted') { throw "Self-hosted runner use is forbidden." }
-if ($Workflow -match '(?im)^\s*continue-on-error\s*:\s*true') { throw "A safety assertion cannot use continue-on-error." }
 
 foreach ($Protected in @(
     'Join-Path $env:APPDATA "com.devpulse.desktop"',
