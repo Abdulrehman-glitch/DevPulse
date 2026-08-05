@@ -216,10 +216,22 @@ def main() -> None:
         fail(errors, "Apache License 2.0 text is absent.")
     if (root / ".github/workflows").exists():
         fail(errors, "A local workflow directory exists.")
+    allowed_workspace_links = {
+        root / "node_modules/@devpulse/desktop": root / "apps/desktop",
+        root / "node_modules/@devpulse/shared-types": root / "packages/shared-types",
+    }
     for path in root.rglob("*"):
-        if path.is_symlink() or path.is_junction():
-            fail(errors, "A filesystem link or junction exists in the staging tree.")
-            break
+        if not (path.is_symlink() or path.is_junction()):
+            continue
+        expected = allowed_workspace_links.get(path)
+        try:
+            target = path.resolve(strict=True)
+            target.relative_to(root)
+        except (FileNotFoundError, RuntimeError, ValueError):
+            fail(errors, f"A filesystem link escapes or is unresolved: {path.relative_to(root)}")
+            continue
+        if expected is None or target != expected.resolve(strict=True):
+            fail(errors, f"An unexpected filesystem link exists: {path.relative_to(root)}")
 
     version = subprocess.run(
         ["node", "scripts/sync-version.mjs", "--check"],
