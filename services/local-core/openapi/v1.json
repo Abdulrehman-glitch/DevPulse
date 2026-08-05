@@ -1262,13 +1262,13 @@
           },
           "usage_percent": {
             "type": "number",
-            "maximum": 100,
-            "minimum": 0,
+            "maximum": 100.0,
+            "minimum": 0.0,
             "title": "Usage Percent"
           },
           "free_bytes": {
             "type": "integer",
-            "minimum": 0,
+            "minimum": 0.0,
             "title": "Free Bytes"
           }
         },
@@ -1954,8 +1954,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 12,
-                "minimum": 0
+                "maximum": 12.0,
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -1967,8 +1967,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 500,
-                "minimum": 1
+                "maximum": 500.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -1980,8 +1980,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 50000,
-                "minimum": 50
+                "maximum": 50000.0,
+                "minimum": 50.0
               },
               {
                 "type": "null"
@@ -1993,8 +1993,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 120,
-                "minimum": 2
+                "maximum": 120.0,
+                "minimum": 2.0
               },
               {
                 "type": "null"
@@ -2006,8 +2006,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 86400,
-                "minimum": 0
+                "maximum": 86400.0,
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -2019,8 +2019,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 86400,
-                "minimum": 0
+                "maximum": 86400.0,
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -2032,8 +2032,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 50,
-                "minimum": 1
+                "maximum": 50.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -2161,8 +2161,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 3650,
-                "minimum": 1
+                "maximum": 3650.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -2224,8 +2224,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 2000,
-                "minimum": 20
+                "maximum": 2000.0,
+                "minimum": 20.0
               },
               {
                 "type": "null"

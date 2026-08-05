@@ -32,9 +32,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "nsis"
-    ],
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -45,9 +43,7 @@
     "publisher": "DevPulse contributors",
     "shortDescription": "Local repository and system health for professional development workspaces.",
     "longDescription": "DevPulse is an installed desktop client that monitors local repositories and system health through a private read-only local service.",
-    "externalBin": [
-      "binaries/devpulse-local-core"
-    ],
+    "externalBin": ["binaries/devpulse-local-core"],
     "resources": [],
     "windows": {
       "webviewInstallMode": {
