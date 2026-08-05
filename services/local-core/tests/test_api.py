@@ -52,11 +52,10 @@ def test_unauthenticated_construction_requires_explicit_test_fixture(
         assert client.get("/health").status_code == 200
 
 
-def test_runtime_access_tokens_are_strong_or_rejected() -> None:
-    generated = resolve_access_token(None)
-    assert len(generated) >= 32
-    assert generated != resolve_access_token(None)
+def test_runtime_access_tokens_must_be_supplied_strong_or_rejected() -> None:
     assert resolve_access_token(ACCESS_TOKEN) == ACCESS_TOKEN
+    with pytest.raises(ValueError, match="at least 32 characters"):
+        resolve_access_token(None)
     with pytest.raises(ValueError, match="at least 32 characters"):
         resolve_access_token("weak")
 

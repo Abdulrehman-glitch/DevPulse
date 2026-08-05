@@ -1,13 +1,12 @@
 use serde::{Deserialize, Serialize};
 #[cfg(debug_assertions)]
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Write};
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
 use std::path::PathBuf;
 #[cfg(debug_assertions)]
 use std::process::{Child as StdChild, Command as StdCommand, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
-#[cfg(debug_assertions)]
 use std::sync::mpsc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -36,6 +35,11 @@ use windows_sys::Win32::{
 
 const MAX_MANUAL_RESTARTS: u8 = 3;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
+const STARTUP_PROTOCOL_VERSION: u8 = 1;
+const MAX_LAUNCH_FRAME_BYTES: usize = 1024;
+const MAX_READY_FRAME_BYTES: usize = 512;
+const LAUNCH_FRAME_PREFIX: &str = "DEVPULSE_LAUNCH ";
+const READY_FRAME_PREFIX: &str = "DEVPULSE_READY ";
 const TAURI_IDENTIFIER: &str = "com.devpulse.desktop";
 
 #[derive(Clone, Debug, PartialEq)]
@@ -284,11 +288,26 @@ pub enum CoreStatus {
     Stopped,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 struct ReadyHandshake {
     address: String,
-    token: String,
     instance_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReadyFrame {
+    protocol_version: u8,
+    port: u16,
+    pid: u32,
+    status: String,
+    instance_id: String,
+}
+
+#[derive(Serialize)]
+struct LaunchFrame<'a> {
+    protocol_version: u8,
+    token: &'a str,
 }
 
 pub enum ManagedChild {
@@ -651,9 +670,6 @@ pub fn start_core(app: &AppHandle, manual_restart: bool) -> Result<CoreConnectio
     };
 
     let result = spawn_core(app, &data_dir, &token).and_then(|handshake| {
-        if handshake.token != token {
-            return Err("The local service returned an invalid session credential.".into());
-        }
         verify_health(&handshake, &token).map(|version| (handshake, version))
     });
 
@@ -679,7 +695,7 @@ pub fn start_core(app: &AppHandle, manual_restart: bool) -> Result<CoreConnectio
             let connection = CoreConnection {
                 status: CoreStatus::Ready,
                 address: Some(handshake.address),
-                token: Some(handshake.token),
+                token: Some(token),
                 version: Some(version),
                 message: None,
                 diagnostics_path: Some(diagnostics.to_string_lossy().into_owned()),
@@ -721,33 +737,73 @@ pub fn start_core(app: &AppHandle, manual_restart: bool) -> Result<CoreConnectio
     }
 }
 
+fn sidecar_arguments(data_dir: &std::path::Path, qa_mode: bool) -> Vec<String> {
+    let mut arguments = vec![
+        "--host".to_string(),
+        "127.0.0.1".to_string(),
+        "--port".to_string(),
+        "0".to_string(),
+        "--data-dir".to_string(),
+        data_dir.to_string_lossy().into_owned(),
+    ];
+    if qa_mode {
+        arguments.push("--qa-mode".to_string());
+    }
+    arguments
+}
+
+fn launch_message(token: &str) -> Result<Vec<u8>, String> {
+    let payload = serde_json::to_vec(&LaunchFrame {
+        protocol_version: STARTUP_PROTOCOL_VERSION,
+        token,
+    })
+    .map_err(|_| "Could not encode the local service launch frame.".to_string())?;
+    let mut message = Vec::with_capacity(LAUNCH_FRAME_PREFIX.len() + payload.len() + 1);
+    message.extend_from_slice(LAUNCH_FRAME_PREFIX.as_bytes());
+    message.extend_from_slice(&payload);
+    message.push(b'\n');
+    if message.len() > MAX_LAUNCH_FRAME_BYTES {
+        return Err("The local service launch frame exceeded its bound.".into());
+    }
+    Ok(message)
+}
+
+fn parse_ready_frame(frame: &[u8]) -> Result<ReadyHandshake, String> {
+    if frame.len() > MAX_READY_FRAME_BYTES {
+        return Err("The local service readiness frame exceeded its bound.".into());
+    }
+    let frame = frame.strip_suffix(b"\r").unwrap_or(frame);
+    let payload = frame
+        .strip_prefix(READY_FRAME_PREFIX.as_bytes())
+        .ok_or("The local service returned an invalid readiness frame.")?;
+    let ready: ReadyFrame = serde_json::from_slice(payload)
+        .map_err(|_| "The local service returned malformed readiness data.".to_string())?;
+    if ready.protocol_version != STARTUP_PROTOCOL_VERSION
+        || ready.status != "ready"
+        || ready.port == 0
+        || ready.pid == 0
+        || ready.instance_id.len() != 32
+        || !ready
+            .instance_id
+            .bytes()
+            .all(|value| value.is_ascii_hexdigit())
+    {
+        return Err("The local service returned invalid readiness data.".into());
+    }
+    Ok(ReadyHandshake {
+        address: format!("http://127.0.0.1:{}", ready.port),
+        instance_id: ready.instance_id,
+    })
+}
+
 #[cfg(not(debug_assertions))]
 fn spawn_core(
     app: &AppHandle,
     data_dir: &std::path::Path,
     token: &str,
 ) -> Result<ReadyHandshake, String> {
-    let handshake_path = data_dir
-        .join("runtime")
-        .join(format!("handshake-{}.json", Uuid::new_v4().simple()));
-    if let Some(parent) = handshake_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    let mut arguments = vec![
-        "--host".to_string(),
-        "127.0.0.1".to_string(),
-        "--port".to_string(),
-        "0".to_string(),
-        "--token".to_string(),
-        token.to_string(),
-        "--data-dir".to_string(),
-        data_dir.to_string_lossy().into_owned(),
-        "--handshake-file".to_string(),
-        handshake_path.to_string_lossy().into_owned(),
-    ];
-    if app.state::<CoreRuntime>().qa_mode {
-        arguments.push("--qa-mode".to_string());
-    }
+    let arguments = sidecar_arguments(data_dir, app.state::<CoreRuntime>().qa_mode);
+    let launch = launch_message(token)?;
     let mut sidecar = app
         .shell()
         .sidecar("devpulse-local-core")
@@ -778,9 +834,13 @@ fn spawn_core(
             sidecar = sidecar.env("DEVPULSE_QA_FAIL_START", "1");
         }
     }
-    let (mut events, child) = sidecar
+    let (mut events, mut child) = sidecar
         .spawn()
         .map_err(|error| format!("Could not start the local service: {error}"))?;
+    if child.write(&launch).is_err() {
+        let _ = child.kill();
+        return Err("Could not write the local service launch frame.".into());
+    }
     let pid = child.pid();
     app.state::<CoreRuntime>()
         .trace("sidecar-process-spawned", "packaged sidecar child created");
@@ -802,12 +862,41 @@ fn spawn_core(
         .child
         .lock()
         .expect("core child lock") = Some(ManagedChild::Sidecar(child));
+    let (startup_tx, startup_rx) = mpsc::sync_channel(1);
     let monitor_app = app.clone();
     tauri::async_runtime::spawn(async move {
+        let mut startup_sender = Some(startup_tx);
         while let Some(event) = events.recv().await {
             match event {
+                CommandEvent::Stdout(frame) => {
+                    if let Some(sender) = startup_sender.take() {
+                        let parsed = parse_ready_frame(&frame);
+                        let valid = parsed.is_ok();
+                        let _ = sender.send(parsed);
+                        if !valid {
+                            break;
+                        }
+                    }
+                }
+                CommandEvent::Stderr(_) => {
+                    monitor_app.state::<CoreRuntime>().trace(
+                        "sidecar-diagnostic-event",
+                        "local service wrote a diagnostic",
+                    );
+                }
+                CommandEvent::Error(_) => {
+                    if let Some(sender) = startup_sender.take() {
+                        let _ =
+                            sender.send(Err("The local service startup channel failed.".into()));
+                    }
+                    break;
+                }
                 CommandEvent::Terminated(_) => {
                     let runtime = monitor_app.state::<CoreRuntime>();
+                    if let Some(sender) = startup_sender.take() {
+                        let _ =
+                            sender.send(Err("The local service exited before readiness.".into()));
+                    }
                     runtime.sidecar_pid.store(0, Ordering::SeqCst);
                     runtime.trace(
                         "sidecar-termination-event",
@@ -823,20 +912,12 @@ fn spawn_core(
                     }
                     break;
                 }
-                _ => {}
             }
         }
     });
-    let started = std::time::Instant::now();
-    while started.elapsed() < STARTUP_TIMEOUT {
-        if let Ok(payload) = std::fs::read_to_string(&handshake_path) {
-            let _ = std::fs::remove_file(&handshake_path);
-            return serde_json::from_str::<ReadyHandshake>(&payload)
-                .map_err(|error| error.to_string());
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    Err("The local service did not become ready within 15 seconds.".into())
+    startup_rx
+        .recv_timeout(STARTUP_TIMEOUT)
+        .map_err(|_| "The local service did not become ready within 15 seconds.".to_string())?
 }
 
 #[cfg(debug_assertions)]
@@ -856,33 +937,25 @@ fn spawn_core(
             "Development Python environment is missing. Create .venv and install .[dev].".into(),
         );
     }
+    let qa_mode = app.state::<CoreRuntime>().qa_mode;
+    let launch = launch_message(token)?;
     let mut command = StdCommand::new(python);
     command
         .current_dir(&repository)
         .env("PYTHONPATH", repository.join("services/local-core"))
         .arg("-m")
         .arg("devpulse_core")
-        .args([
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "0",
-            "--token",
-            token,
-            "--data-dir",
-        ])
-        .arg(data_dir)
+        .args(sidecar_arguments(data_dir, qa_mode))
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null());
-    if app.state::<CoreRuntime>().qa_mode {
+        .stderr(Stdio::piped())
+        .stdin(Stdio::piped());
+    if qa_mode {
         let runtime = app.state::<CoreRuntime>();
         let root = runtime
             .qa_root
             .as_ref()
             .ok_or("The development local core requires a validated QA root.")?;
         command
-            .arg("--qa-mode")
             .env("DEVPULSE_QA_MODE", "1")
             .env(
                 "DEVPULSE_INSTALL_QA",
@@ -904,23 +977,44 @@ fn spawn_core(
     let mut child = command
         .spawn()
         .map_err(|error| format!("Could not start development local core: {error}"))?;
+    let write_result = child
+        .stdin
+        .take()
+        .ok_or("The local service did not provide a launch channel.")
+        .and_then(|mut stdin| {
+            stdin
+                .write_all(&launch)
+                .and_then(|_| stdin.flush())
+                .map_err(|_| "Could not write the local service launch frame.")
+        });
+    if let Err(error) = write_result {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(error.into());
+    }
     let stdout = child
         .stdout
         .take()
         .ok_or("The local service did not provide a startup channel.")?;
+    if let Some(mut stderr) = child.stderr.take() {
+        std::thread::spawn(move || {
+            let _ = std::io::copy(&mut stderr, &mut std::io::sink());
+        });
+    }
     let (tx, rx) = mpsc::sync_channel(1);
     std::thread::spawn(move || {
-        let mut reader = BufReader::new(stdout);
-        let mut line = String::new();
-        let result = reader
-            .read_line(&mut line)
-            .map_err(|error| error.to_string())
-            .and_then(|_| {
-                let payload = line.strip_prefix("DEVPULSE_READY ").ok_or_else(|| {
-                    "The local service returned an invalid startup response.".to_string()
-                })?;
-                serde_json::from_str::<ReadyHandshake>(payload.trim())
-                    .map_err(|error| error.to_string())
+        let reader = BufReader::new(stdout);
+        let mut bounded = reader.take((MAX_READY_FRAME_BYTES + 2) as u64);
+        let mut line = Vec::new();
+        let result = bounded
+            .read_until(b'\n', &mut line)
+            .map_err(|_| "The local service startup channel failed.".to_string())
+            .and_then(|count| {
+                if count == 0 || line.len() > MAX_READY_FRAME_BYTES + 1 || !line.ends_with(b"\n") {
+                    return Err("The local service returned an invalid readiness frame.".into());
+                }
+                line.pop();
+                parse_ready_frame(&line)
             });
         let _ = tx.send(result);
     });
@@ -1313,6 +1407,50 @@ mod tests {
         assert_eq!(first.len(), 64);
         assert!(first.bytes().all(|value| value.is_ascii_hexdigit()));
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn sidecar_arguments_and_environment_do_not_carry_the_token() {
+        let token = "a".repeat(64);
+        let arguments = sidecar_arguments(std::path::Path::new(r"C:\sandbox\data"), true);
+        assert!(!arguments.iter().any(|argument| argument == &token));
+        assert!(!arguments.iter().any(|argument| argument == "--token"));
+        assert!(!arguments
+            .iter()
+            .any(|argument| argument == "--handshake-file"));
+        let source = include_str!("lifecycle.rs");
+        assert!(!source.contains(".env(\"DEVPULSE_TOKEN\""));
+    }
+
+    #[test]
+    fn launch_frame_is_versioned_bounded_and_contains_the_ephemeral_token_once() {
+        let token = "b".repeat(64);
+        let frame = launch_message(&token).expect("valid launch frame");
+        assert!(frame.starts_with(LAUNCH_FRAME_PREFIX.as_bytes()));
+        assert!(frame.ends_with(b"\n"));
+        assert!(frame.len() <= MAX_LAUNCH_FRAME_BYTES);
+        let text = String::from_utf8(frame).expect("UTF-8 launch frame");
+        assert_eq!(text.matches(&token).count(), 1);
+        assert!(text.contains(&format!("\"protocol_version\":{STARTUP_PROTOCOL_VERSION}")));
+    }
+
+    #[test]
+    fn readiness_frame_is_strict_non_secret_and_loopback_only() {
+        let frame = format!(
+            "{READY_FRAME_PREFIX}{{\"protocol_version\":1,\"port\":43210,\"pid\":42,\"status\":\"ready\",\"instance_id\":\"{}\"}}",
+            "c".repeat(32)
+        );
+        let ready = parse_ready_frame(frame.as_bytes()).expect("valid readiness frame");
+        assert_eq!(ready.address, "http://127.0.0.1:43210");
+        assert!(!frame.to_ascii_lowercase().contains("token"));
+
+        let old_secret_handshake = format!(
+            "{READY_FRAME_PREFIX}{{\"address\":\"http://127.0.0.1:1\",\"token\":\"{}\",\"instance_id\":\"{}\"}}",
+            "d".repeat(64),
+            "e".repeat(32)
+        );
+        assert!(parse_ready_frame(old_secret_handshake.as_bytes()).is_err());
+        assert!(parse_ready_frame(&vec![b'x'; MAX_READY_FRAME_BYTES + 1]).is_err());
     }
 
     #[test]

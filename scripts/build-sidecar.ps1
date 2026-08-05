@@ -18,11 +18,14 @@ $BuildDirectory = Join-Path $Root ".tmp\sidecar-build"
 $DestinationDirectory = Join-Path $Root "apps\desktop\src-tauri\binaries"
 New-Item -ItemType Directory -Force -Path $BuildDirectory, $DestinationDirectory | Out-Null
 $env:PYINSTALLER_CONFIG_DIR = Join-Path $BuildDirectory "config"
+# Tauri launches the console-subsystem sidecar with CREATE_NO_WINDOW and inherited
+# pipes. PyInstaller's windowed mode replaces Python stdio with null objects, which
+# would break the secret stdin launch channel and non-secret readiness frame.
 & $Python -m PyInstaller `
     --noconfirm `
     --clean `
     --onefile `
-    --windowed `
+    --console `
     --name devpulse-local-core `
     --distpath (Join-Path $BuildDirectory "dist") `
     --workpath (Join-Path $BuildDirectory "work") `

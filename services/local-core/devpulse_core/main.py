@@ -6,8 +6,8 @@ import argparse
 import json
 import multiprocessing
 import os
-import secrets
 import socket
+import sys
 from pathlib import Path
 from uuid import uuid4
 
@@ -18,15 +18,19 @@ from devpulse_core.config import SettingsStore
 from devpulse_core.logging import configure_logging
 from devpulse_core.paths import AppPaths
 from devpulse_core.providers import LocalDataProvider
+from devpulse_core.startup import (
+    LaunchProtocolError,
+    read_launch_message,
+    readiness_frame,
+    reject_legacy_secret_arguments,
+)
 
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description="DevPulse local core")
     result.add_argument("--host", default="127.0.0.1", choices=["127.0.0.1"])
     result.add_argument("--port", type=int, default=0)
-    result.add_argument("--token", default=None)
     result.add_argument("--data-dir", type=Path, default=None)
-    result.add_argument("--handshake-file", type=Path, default=None)
     result.add_argument("--qa-mode", action="store_true")
     result.add_argument("--dev", action="store_true")
     return result
@@ -118,15 +122,19 @@ def resolve_runtime_paths(args: argparse.Namespace) -> AppPaths:
 
 
 def resolve_access_token(provided: str | None) -> str:
-    """Generate a high-entropy session token or reject a weak supplied token."""
-    token = secrets.token_urlsafe(32) if provided is None else provided
-    if len(token) < 32:
+    """Accept only a strong token supplied through the inherited launch channel."""
+    if provided is None or len(provided) < 32:
         raise ValueError("The local-core access token must contain at least 32 characters")
-    return token
+    return provided
 
 
 def main() -> None:
-    args = parser().parse_args()
+    try:
+        reject_legacy_secret_arguments(sys.argv[1:])
+        args = parser().parse_args()
+        launch = read_launch_message()
+    except LaunchProtocolError as error:
+        raise SystemExit(78) from error
     try:
         paths = resolve_runtime_paths(args)
     except ValueError as error:
@@ -134,7 +142,7 @@ def main() -> None:
     if args.qa_mode and os.getenv("DEVPULSE_QA_FAIL_START") == "1":
         raise SystemExit(78)
     try:
-        token = resolve_access_token(args.token)
+        token = resolve_access_token(launch.token)
     except ValueError as error:
         raise SystemExit(78) from error
     instance_id = uuid4().hex
@@ -150,20 +158,10 @@ def main() -> None:
     listener.bind((args.host, args.port))
     listener.listen(2048)
     port = int(listener.getsockname()[1])
-    handshake = {
-        "address": f"http://127.0.0.1:{port}",
-        "token": token,
-        "instance_id": instance_id,
-    }
-    # Release sidecars are windowed binaries with no stdout. Keep their private handshake
-    # in application data instead.
-    if args.handshake_file:
-        args.handshake_file.parent.mkdir(parents=True, exist_ok=True)
-        temporary = args.handshake_file.with_suffix(".tmp")
-        temporary.write_text(json.dumps(handshake), encoding="utf-8")
-        temporary.replace(args.handshake_file)
-    else:
-        print("DEVPULSE_READY " + json.dumps(handshake), flush=True)
+    print(readiness_frame(port=port, process_id=os.getpid(), instance_id=instance_id), flush=True)
+    # The startup frame is the only stdout protocol message. Route any later incidental
+    # output to stderr; application logging remains in the configured local log file.
+    sys.stdout = sys.stderr
     config = uvicorn.Config(
         app,
         loop="asyncio",

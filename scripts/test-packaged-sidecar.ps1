@@ -11,15 +11,21 @@ $QaLocalAppData = Join-Path $QaRoot "process-env\local"
 $QaWebView2Data = Join-Path $QaRoot "webview2"
 $Candidates = @(Get-ChildItem -LiteralPath (Join-Path $Root "apps\desktop\src-tauri\binaries") -File -Filter "*.exe")
 if ($Candidates.Count -ne 1) { throw "Expected exactly one packaged sidecar binary." }
-$Token = [Guid]::NewGuid().ToString("N")
-$HandshakePath = Join-Path $QaRoot "handshake.json"
-Remove-Item -LiteralPath $HandshakePath -Force -ErrorAction SilentlyContinue
+
+$Token = [Guid]::NewGuid().ToString("N") + [Guid]::NewGuid().ToString("N")
+$Launch = @{
+    protocol_version = 1
+    token = $Token
+} | ConvertTo-Json -Compress
 $StartInfo = [System.Diagnostics.ProcessStartInfo]::new()
 $StartInfo.FileName = $Candidates[0].FullName
 $StartInfo.WorkingDirectory = $Root
 $StartInfo.UseShellExecute = $false
 $StartInfo.CreateNoWindow = $true
-$StartInfo.Arguments = "--data-dir `"$QaRoot`" --token $Token --handshake-file `"$HandshakePath`" --qa-mode"
+$StartInfo.RedirectStandardInput = $true
+$StartInfo.RedirectStandardOutput = $true
+$StartInfo.RedirectStandardError = $true
+$StartInfo.Arguments = "--data-dir `"$QaRoot`" --qa-mode"
 foreach ($Entry in @{
     DEVPULSE_QA_MODE = "1"
     DEVPULSE_INSTALL_QA = "0"
@@ -33,41 +39,77 @@ foreach ($Entry in @{
 }.GetEnumerator()) {
     $StartInfo.Environment[$Entry.Key] = [string]$Entry.Value
 }
+if ($StartInfo.Arguments.Contains($Token)) { throw "The token entered the child command line." }
+if (@($StartInfo.Environment.Values | Where-Object { $_ -eq $Token }).Count -ne 0) {
+    throw "The token entered the child environment."
+}
+
 $Process = [System.Diagnostics.Process]::new()
 $Process.StartInfo = $StartInfo
 try {
     if (-not $Process.Start()) { throw "Could not start the packaged sidecar." }
-    $Deadline = [DateTime]::UtcNow.AddSeconds(30)
-    while ([DateTime]::UtcNow -lt $Deadline -and -not (Test-Path -LiteralPath $HandshakePath)) {
-        if ($Process.HasExited) { throw "Packaged sidecar exited before its handshake." }
-        Start-Sleep -Milliseconds 100
+    $ErrorRead = $Process.StandardError.ReadToEndAsync()
+    $Process.StandardInput.WriteLine("DEVPULSE_LAUNCH $Launch")
+    $Process.StandardInput.Flush()
+    $Process.StandardInput.Close()
+
+    $ReadyRead = $Process.StandardOutput.ReadLineAsync()
+    if (-not $ReadyRead.Wait([TimeSpan]::FromSeconds(30))) {
+        throw "Packaged sidecar readiness timed out."
     }
-    if (-not (Test-Path -LiteralPath $HandshakePath)) { throw "Packaged sidecar handshake timed out." }
-    $Handshake = Get-Content -LiteralPath $HandshakePath -Raw | ConvertFrom-Json
-    Remove-Item -LiteralPath $HandshakePath -Force
-    if ($Handshake.token -ne $Token -or $Handshake.address -notmatch '^http://127\.0\.0\.1:\d+$') {
-        throw "Packaged sidecar returned an invalid authenticated loopback handshake."
+    $ReadyLine = $ReadyRead.Result
+    if ([string]::IsNullOrWhiteSpace($ReadyLine) -or $ReadyLine.Length -gt 512) {
+        throw "Packaged sidecar returned an invalid readiness frame."
     }
+    if ($ReadyLine.Contains($Token) -or $ReadyLine -match '(?i)token') {
+        throw "Packaged sidecar readiness exposed the token."
+    }
+    if (-not $ReadyLine.StartsWith("DEVPULSE_READY ")) {
+        throw "Packaged sidecar returned an invalid readiness frame type."
+    }
+    $Ready = $ReadyLine.Substring("DEVPULSE_READY ".Length) | ConvertFrom-Json
+    $ReadyProperties = @($Ready.PSObject.Properties.Name | Sort-Object)
+    $ExpectedProperties = @("instance_id", "pid", "port", "protocol_version", "status") | Sort-Object
+    if (@(Compare-Object $ReadyProperties $ExpectedProperties).Count -ne 0 -or
+        $Ready.protocol_version -ne 1 -or $Ready.status -ne "ready" -or
+        $Ready.port -lt 1 -or $Ready.port -gt 65535 -or $Ready.pid -lt 1 -or
+        $Ready.instance_id -notmatch '^[0-9a-f]{32}$') {
+        throw "Packaged sidecar returned invalid readiness data."
+    }
+    $Address = "http://127.0.0.1:$($Ready.port)"
     try {
-        Invoke-WebRequest -Uri "$($Handshake.address)/health" -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri "$Address/health" -UseBasicParsing -TimeoutSec 5 | Out-Null
         throw "Unauthenticated health unexpectedly succeeded."
     }
     catch {
         if ($_.Exception.Response.StatusCode.value__ -ne 401) { throw }
     }
     $Headers = @{ "X-DevPulse-Token" = $Token }
-    $Health = Invoke-RestMethod -Uri "$($Handshake.address)/health" -Headers $Headers -TimeoutSec 5
+    $Health = Invoke-RestMethod -Uri "$Address/health" -Headers $Headers -TimeoutSec 5
     if ($Health.status -ne "ok" -or -not $Health.qa_mode) { throw "Authenticated QA health failed." }
     $PathReportPath = Join-Path $QaRoot "local-core-path-report.json"
-    if (-not (Test-Path -LiteralPath $PathReportPath -PathType Leaf)) { throw "Packaged sidecar did not emit its QA path report." }
+    if (-not (Test-Path -LiteralPath $PathReportPath -PathType Leaf)) {
+        throw "Packaged sidecar did not emit its QA path report."
+    }
     $PathReport = Get-Content -LiteralPath $PathReportPath -Raw | ConvertFrom-Json
     if (-not $PathReport.allWritablePathsUnderQaRoot -or -not $PathReport.environmentMatchesCanonicalPlan) {
         throw "Packaged sidecar did not keep every writable path inside its canonical QA root."
     }
-    Invoke-RestMethod -Uri "$($Handshake.address)/internal/shutdown" -Method Post -Headers $Headers -TimeoutSec 5 | Out-Null
+    if (@(Get-ChildItem -LiteralPath $QaRoot -Recurse -File -Filter "*handshake*.json").Count -ne 0) {
+        throw "Packaged sidecar produced an obsolete disk handshake."
+    }
+    Invoke-RestMethod -Uri "$Address/internal/shutdown" -Method Post -Headers $Headers -TimeoutSec 5 | Out-Null
     if (-not $Process.WaitForExit(15000)) { throw "Packaged sidecar did not shut down promptly." }
-    if ($Process.ExitCode -ne 0) { throw "Packaged sidecar exited with code $($Process.ExitCode)." }
-    Write-Host "Packaged sidecar authenticated health and shutdown passed (PID $($Process.Id), exit 0)."
+    if ($Process.ExitCode -ne 0) { throw "Packaged sidecar exited with a non-zero code." }
+    $Diagnostics = $ErrorRead.Result
+    if ($Diagnostics.Contains($Token)) { throw "Packaged sidecar diagnostics exposed the token." }
+    $LogFiles = @(Get-ChildItem -LiteralPath $QaRoot -Recurse -File -Filter "*.log*")
+    foreach ($LogFile in $LogFiles) {
+        if ((Get-Content -LiteralPath $LogFile.FullName -Raw).Contains($Token)) {
+            throw "Packaged sidecar logs exposed the token."
+        }
+    }
+    Write-Host "Packaged sidecar stdin launch, authenticated health, and shutdown passed."
 }
 finally {
     if ($null -ne $Process -and -not $Process.HasExited) {
@@ -75,5 +117,4 @@ finally {
         $Process.WaitForExit()
     }
     $Token = $null
-    Remove-Item -LiteralPath $HandshakePath -Force -ErrorAction SilentlyContinue
 }
