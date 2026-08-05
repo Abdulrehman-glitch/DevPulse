@@ -1,0 +1,62 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "DevPulse",
+  "version": "0.3.0-alpha.1",
+  "identifier": "com.devpulse.desktop",
+  "build": {
+    "beforeDevCommand": "node ../../node_modules/vite/bin/vite.js --host 127.0.0.1 --port 1420",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "DevPulse",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 980,
+        "minHeight": 680,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false,
+        "maximized": false,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:*; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; font-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "category": "DeveloperTool",
+    "publisher": "DevPulse contributors",
+    "shortDescription": "Local repository and system health for professional development workspaces.",
+    "longDescription": "DevPulse is an installed desktop client that monitors local repositories and system health through a private read-only local service.",
+    "externalBin": [
+      "binaries/devpulse-local-core"
+    ],
+    "resources": [],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "skip"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "startMenuFolder": "DevPulse"
+      }
+    }
+  }
+}

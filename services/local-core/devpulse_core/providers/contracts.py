@@ -1,0 +1,33 @@
+"""Provider boundaries that keep transport and future hosted services replaceable."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from devpulse_core.models import ActivityEvent, RepositoryInfo, Settings, SystemSnapshot
+
+
+class DataProvider(Protocol):
+    def system_snapshot(self) -> SystemSnapshot: ...
+    def projects(self) -> list[RepositoryInfo]: ...
+    def project(self, project_id: str) -> RepositoryInfo | None: ...
+    def refresh(self, *, force: bool = True) -> list[RepositoryInfo]: ...
+    def activity(self, limit: int = 30) -> list[ActivityEvent]: ...
+    def settings(self) -> Settings: ...
+    def update_settings(self, settings: Settings) -> Settings: ...
+
+
+class RemoteDataProvider(DataProvider, Protocol):
+    """Future hosted API implementation; intentionally no concrete implementation yet."""
+
+
+class AuthenticationProvider(Protocol):
+    def is_authenticated(self) -> bool: ...
+
+
+class SubscriptionProvider(Protocol):
+    def current_plan(self) -> str | None: ...
+
+
+class UpdateProvider(Protocol):
+    def available_version(self) -> str | None: ...

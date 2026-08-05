@@ -1,0 +1,2714 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DevPulse Local API",
+    "description": "Versioned loopback API for the DevPulse desktop client.",
+    "version": "0.3.0-alpha.1"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/shutdown": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Shutdown",
+        "operationId": "shutdown_internal_shutdown_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Shutdown Internal Shutdown Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/events/{event_type}": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Lifecycle Event",
+        "operationId": "lifecycle_event_internal_events__event_type__post",
+        "parameters": [
+          {
+            "name": "event_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Type"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Lifecycle Event Internal Events  Event Type  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/summary": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "System Summary",
+        "operationId": "system_summary_api_v1_system_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Projects",
+        "operationId": "projects_api_v1_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Add Projects",
+        "operationId": "add_projects_api_v1_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPathsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_identifier}": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Project",
+        "operationId": "project_api_v1_projects__project_identifier__get",
+        "parameters": [
+          {
+            "name": "project_identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Remove Project",
+        "operationId": "remove_project_api_v1_projects__project_identifier__delete",
+        "parameters": [
+          {
+            "name": "project_identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Update Project Path",
+        "operationId": "update_project_path_api_v1_projects__project_identifier__patch",
+        "parameters": [
+          {
+            "name": "project_identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Identifier"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_identifier}/open-path": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Registered Project Open Path",
+        "operationId": "registered_project_open_path_api_v1_projects__project_identifier__open_path_get",
+        "parameters": [
+          {
+            "name": "project_identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisteredProjectPathResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/preview": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Preview Project",
+        "operationId": "preview_project_api_v1_projects_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/project-roots/preview": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Preview Root",
+        "operationId": "preview_root_api_v1_project_roots_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/refresh": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Refresh Projects",
+        "operationId": "refresh_projects_api_v1_projects_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/history": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "System History",
+        "operationId": "system_history_api_v1_system_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHistoryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/activity": {
+      "get": {
+        "tags": [
+          "activity"
+        ],
+        "summary": "Activity",
+        "operationId": "activity_api_v1_activity_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "activity"
+        ],
+        "summary": "Clear Activity",
+        "operationId": "clear_activity_api_v1_activity_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Settings",
+        "operationId": "settings_api_v1_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Update Settings",
+        "operationId": "update_settings_api_v1_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/configuration/export": {
+      "get": {
+        "tags": [
+          "configuration"
+        ],
+        "summary": "Export Configuration",
+        "operationId": "export_configuration_api_v1_configuration_export_get",
+        "parameters": [
+          {
+            "name": "include_notes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Notes"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigurationExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/configuration/import/preview": {
+      "post": {
+        "tags": [
+          "configuration"
+        ],
+        "summary": "Preview Configuration Import",
+        "operationId": "preview_configuration_import_api_v1_configuration_import_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigurationImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigurationImportPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/configuration/import": {
+      "post": {
+        "tags": [
+          "configuration"
+        ],
+        "summary": "Import Configuration",
+        "operationId": "import_configuration_api_v1_configuration_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigurationImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backups": {
+      "get": {
+        "tags": [
+          "configuration"
+        ],
+        "summary": "Backups",
+        "operationId": "backups_api_v1_backups_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BackupSummary"
+                  },
+                  "type": "array",
+                  "title": "Response Backups Api V1 Backups Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "configuration"
+        ],
+        "summary": "Create Backup",
+        "operationId": "create_backup_api_v1_backups_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backups/{backup_identifier}/restore": {
+      "post": {
+        "tags": [
+          "configuration"
+        ],
+        "summary": "Restore Backup",
+        "operationId": "restore_backup_api_v1_backups__backup_identifier__restore_post",
+        "parameters": [
+          {
+            "name": "backup_identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Backup Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backups/{backup_identifier}": {
+      "delete": {
+        "tags": [
+          "configuration"
+        ],
+        "summary": "Delete Backup",
+        "operationId": "delete_backup_api_v1_backups__backup_identifier__delete",
+        "parameters": [
+          {
+            "name": "backup_identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Backup Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/qa/status": {
+      "get": {
+        "tags": [
+          "qa"
+        ],
+        "summary": "Qa Status",
+        "operationId": "qa_status_api_v1_qa_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/qa/reset": {
+      "post": {
+        "tags": [
+          "qa"
+        ],
+        "summary": "Reset Qa Data",
+        "operationId": "reset_qa_data_api_v1_qa_reset_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/qa/regenerate": {
+      "post": {
+        "tags": [
+          "qa"
+        ],
+        "summary": "Regenerate Qa Data",
+        "operationId": "regenerate_qa_data_api_v1_qa_regenerate_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics": {
+      "get": {
+        "tags": [
+          "diagnostics"
+        ],
+        "summary": "Diagnostics",
+        "operationId": "diagnostics_api_v1_diagnostics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/export": {
+      "get": {
+        "tags": [
+          "diagnostics"
+        ],
+        "summary": "Diagnostics Export",
+        "operationId": "diagnostics_export_api_v1_diagnostics_export_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsExportResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActivityEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "error"
+            ],
+            "title": "Kind"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "application_started",
+              "core_started",
+              "core_connected",
+              "project_added",
+              "project_removed",
+              "scan_started",
+              "scan_completed",
+              "scan_failed",
+              "configuration_updated",
+              "configuration_migrated",
+              "configuration_imported",
+              "configuration_exported",
+              "recovery_performed",
+              "core_restarted",
+              "shutdown_requested",
+              "qa_mode_started",
+              "qa_data_reset",
+              "qa_data_regenerated",
+              "project_archived",
+              "project_restored",
+              "warning_appeared",
+              "warning_resolved"
+            ],
+            "title": "Event Type"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "timestamp",
+          "kind",
+          "event_type",
+          "message"
+        ],
+        "title": "ActivityEvent"
+      },
+      "ActivityResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityEvent"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ActivityResponse"
+      },
+      "BackupSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "size_bytes",
+          "source"
+        ],
+        "title": "BackupSummary"
+      },
+      "ConfigurationExportResponse": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version"
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Exported At"
+          },
+          "includes_notes": {
+            "type": "boolean",
+            "title": "Includes Notes"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Settings"
+          },
+          "projects": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Projects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema_version",
+          "exported_at",
+          "includes_notes",
+          "settings",
+          "projects"
+        ],
+        "title": "ConfigurationExportResponse"
+      },
+      "ConfigurationImportPreview": {
+        "properties": {
+          "additions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Additions"
+          },
+          "updates": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Updates"
+          },
+          "conflicts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Conflicts"
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "additions",
+          "updates",
+          "conflicts",
+          "valid"
+        ],
+        "title": "ConfigurationImportPreview"
+      },
+      "ConfigurationImportRequest": {
+        "properties": {
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "payload"
+        ],
+        "title": "ConfigurationImportRequest"
+      },
+      "DiagnosticsExportResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "DiagnosticsExportResponse"
+      },
+      "DiagnosticsResponse": {
+        "properties": {
+          "devpulse_version": {
+            "type": "string",
+            "title": "Devpulse Version"
+          },
+          "operating_system": {
+            "type": "string",
+            "title": "Operating System"
+          },
+          "qa_mode": {
+            "type": "boolean",
+            "title": "Qa Mode"
+          },
+          "local_core_status": {
+            "type": "string",
+            "title": "Local Core Status"
+          },
+          "sidecar_status": {
+            "type": "string",
+            "title": "Sidecar Status"
+          },
+          "startup_duration_ms": {
+            "type": "integer",
+            "title": "Startup Duration Ms"
+          },
+          "last_scan_status": {
+            "type": "string",
+            "title": "Last Scan Status"
+          },
+          "registered_projects": {
+            "type": "integer",
+            "title": "Registered Projects"
+          },
+          "cache_status": {
+            "type": "string",
+            "title": "Cache Status"
+          },
+          "configuration_schema_version": {
+            "type": "integer",
+            "title": "Configuration Schema Version"
+          },
+          "data_boundary": {
+            "type": "string",
+            "title": "Data Boundary"
+          },
+          "recent_error_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recent Error Codes"
+          },
+          "log_excerpt": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Log Excerpt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "devpulse_version",
+          "operating_system",
+          "qa_mode",
+          "local_core_status",
+          "sidecar_status",
+          "startup_duration_ms",
+          "last_scan_status",
+          "registered_projects",
+          "cache_status",
+          "configuration_schema_version",
+          "data_boundary",
+          "recent_error_codes",
+          "log_excerpt"
+        ],
+        "title": "DiagnosticsResponse"
+      },
+      "DiskVolume": {
+        "properties": {
+          "mount": {
+            "type": "string",
+            "title": "Mount"
+          },
+          "usage_percent": {
+            "type": "number",
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Usage Percent"
+          },
+          "free_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Free Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mount",
+          "usage_percent",
+          "free_bytes"
+        ],
+        "title": "DiskVolume"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status",
+            "default": "ok"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id"
+          },
+          "qa_mode": {
+            "type": "boolean",
+            "title": "Qa Mode",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "instance_id"
+        ],
+        "title": "HealthResponse"
+      },
+      "PathRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "format": "path",
+            "title": "Path"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "PathRequest"
+      },
+      "ProjectDetailResponse": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/ProjectSummary"
+          },
+          "modified_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Modified Files"
+          },
+          "staged_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Staged Files"
+          },
+          "untracked_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Untracked Files"
+          },
+          "important_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Important Files"
+          },
+          "root_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Root Files"
+          },
+          "dependency_manager": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependency Manager"
+          },
+          "testing_framework": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Testing Framework"
+          },
+          "ci_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Provider"
+          },
+          "container_support": {
+            "type": "boolean",
+            "title": "Container Support"
+          },
+          "deployment_indicators": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deployment Indicators"
+          },
+          "monorepo": {
+            "type": "boolean",
+            "title": "Monorepo"
+          },
+          "application_directories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Application Directories"
+          },
+          "documentation_directory": {
+            "type": "boolean",
+            "title": "Documentation Directory"
+          },
+          "remote_present": {
+            "type": "boolean",
+            "title": "Remote Present"
+          },
+          "commits": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Commits"
+          },
+          "health_breakdown": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Health Breakdown"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "warning_details": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Warning Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "modified_files",
+          "staged_files",
+          "untracked_files",
+          "important_files",
+          "root_files",
+          "dependency_manager",
+          "testing_framework",
+          "ci_provider",
+          "container_support",
+          "deployment_indicators",
+          "monorepo",
+          "application_directories",
+          "documentation_directory",
+          "remote_present",
+          "commits",
+          "health_breakdown",
+          "warnings",
+          "warning_details"
+        ],
+        "title": "ProjectDetailResponse"
+      },
+      "ProjectListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "last_successful_refresh": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Successful Refresh"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "last_successful_refresh"
+        ],
+        "title": "ProjectListResponse"
+      },
+      "ProjectPatch": {
+        "properties": {
+          "path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "favorite": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Favorite"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "uniqueItems": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProjectPatch"
+      },
+      "ProjectPathsRequest": {
+        "properties": {
+          "paths": {
+            "items": {
+              "type": "string",
+              "format": "path"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Paths"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paths"
+        ],
+        "title": "ProjectPathsRequest"
+      },
+      "ProjectSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "favorite": {
+            "type": "boolean",
+            "title": "Favorite"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          },
+          "exists": {
+            "type": "boolean",
+            "title": "Exists"
+          },
+          "is_git_repository": {
+            "type": "boolean",
+            "title": "Is Git Repository"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch"
+          },
+          "tracking_branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Branch"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "changed_files": {
+            "type": "integer",
+            "title": "Changed Files"
+          },
+          "modified_count": {
+            "type": "integer",
+            "title": "Modified Count"
+          },
+          "staged_count": {
+            "type": "integer",
+            "title": "Staged Count"
+          },
+          "untracked_count": {
+            "type": "integer",
+            "title": "Untracked Count"
+          },
+          "ahead_count": {
+            "type": "integer",
+            "title": "Ahead Count"
+          },
+          "behind_count": {
+            "type": "integer",
+            "title": "Behind Count"
+          },
+          "last_commit_message": {
+            "type": "string",
+            "title": "Last Commit Message"
+          },
+          "last_commit_author": {
+            "type": "string",
+            "title": "Last Commit Author"
+          },
+          "last_commit_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Commit Date"
+          },
+          "repository_age_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository Age Days"
+          },
+          "recent_activity": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent Activity"
+          },
+          "primary_technology": {
+            "type": "string",
+            "title": "Primary Technology"
+          },
+          "technologies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Technologies"
+          },
+          "health_score": {
+            "type": "integer",
+            "title": "Health Score"
+          },
+          "warning_count": {
+            "type": "integer",
+            "title": "Warning Count"
+          },
+          "last_scan_duration_ms": {
+            "type": "integer",
+            "title": "Last Scan Duration Ms"
+          },
+          "last_scan_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Scan Timestamp"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "path",
+          "favorite",
+          "tags",
+          "notes",
+          "archived",
+          "exists",
+          "is_git_repository",
+          "branch",
+          "tracking_branch",
+          "status",
+          "changed_files",
+          "modified_count",
+          "staged_count",
+          "untracked_count",
+          "ahead_count",
+          "behind_count",
+          "last_commit_message",
+          "last_commit_author",
+          "last_commit_date",
+          "repository_age_days",
+          "recent_activity",
+          "primary_technology",
+          "technologies",
+          "health_score",
+          "warning_count",
+          "last_scan_duration_ms",
+          "last_scan_timestamp",
+          "error"
+        ],
+        "title": "ProjectSummary"
+      },
+      "QaStatusResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "artificial_data": {
+            "type": "boolean",
+            "title": "Artificial Data"
+          },
+          "data_root": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Root"
+          },
+          "test_lab": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Lab"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "artificial_data",
+          "data_root",
+          "test_lab"
+        ],
+        "title": "QaStatusResponse"
+      },
+      "RegisteredProjectPathResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "path"
+        ],
+        "title": "RegisteredProjectPathResponse"
+      },
+      "SettingsPatch": {
+        "properties": {
+          "project_directories": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "path"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Directories"
+          },
+          "onboarding_completed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onboarding Completed"
+          },
+          "scan_roots": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Roots"
+          },
+          "ignored_directories": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "uniqueItems": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ignored Directories"
+          },
+          "maximum_scan_depth": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Scan Depth"
+          },
+          "maximum_repositories_per_root": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 500,
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Repositories Per Root"
+          },
+          "maximum_directories_per_scan": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 50000,
+                "minimum": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Directories Per Scan"
+          },
+          "scan_timeout_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 120,
+                "minimum": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Timeout Seconds"
+          },
+          "cache_duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 86400,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Duration Seconds"
+          },
+          "refresh_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 86400,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Interval Seconds"
+          },
+          "maximum_commits_displayed": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 50,
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Commits Displayed"
+          },
+          "appearance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "system",
+                  "light",
+                  "dark"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appearance"
+          },
+          "start_minimized": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Minimized"
+          },
+          "reduced_motion": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reduced Motion"
+          },
+          "confirm_before_removing_project": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Before Removing Project"
+          },
+          "log_level": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "DEBUG",
+                  "INFO",
+                  "WARNING",
+                  "ERROR",
+                  "CRITICAL"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Level"
+          },
+          "default_landing_page": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "overview",
+                  "projects",
+                  "activity",
+                  "system",
+                  "diagnostics",
+                  "settings"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Landing Page"
+          },
+          "date_time_display": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "local",
+                  "utc"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Time Display"
+          },
+          "table_density": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "comfortable",
+                  "compact"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Density"
+          },
+          "stale_project_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3650,
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Project Days"
+          },
+          "default_sort": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "name",
+                  "recent",
+                  "changes",
+                  "health",
+                  "warnings",
+                  "refresh"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Sort"
+          },
+          "notification_preferences": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification Preferences"
+          },
+          "notification_severity_threshold": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "info",
+                  "success",
+                  "warning",
+                  "error"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification Severity Threshold"
+          },
+          "notification_history_length": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2000,
+                "minimum": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification History Length"
+          },
+          "saved_views": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array",
+                "maxItems": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Views"
+          },
+          "active_saved_view": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Saved View"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SettingsPatch"
+      },
+      "SettingsResponse": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version"
+          },
+          "onboarding_completed": {
+            "type": "boolean",
+            "title": "Onboarding Completed"
+          },
+          "projects": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Projects"
+          },
+          "scan_roots": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Scan Roots"
+          },
+          "ignored_directories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ignored Directories"
+          },
+          "maximum_scan_depth": {
+            "type": "integer",
+            "title": "Maximum Scan Depth"
+          },
+          "maximum_repositories_per_root": {
+            "type": "integer",
+            "title": "Maximum Repositories Per Root"
+          },
+          "maximum_directories_per_scan": {
+            "type": "integer",
+            "title": "Maximum Directories Per Scan"
+          },
+          "scan_timeout_seconds": {
+            "type": "integer",
+            "title": "Scan Timeout Seconds"
+          },
+          "cache_duration_seconds": {
+            "type": "integer",
+            "title": "Cache Duration Seconds"
+          },
+          "refresh_interval_seconds": {
+            "type": "integer",
+            "title": "Refresh Interval Seconds"
+          },
+          "maximum_commits_displayed": {
+            "type": "integer",
+            "title": "Maximum Commits Displayed"
+          },
+          "appearance": {
+            "type": "string",
+            "enum": [
+              "system",
+              "light",
+              "dark"
+            ],
+            "title": "Appearance"
+          },
+          "start_minimized": {
+            "type": "boolean",
+            "title": "Start Minimized"
+          },
+          "reduced_motion": {
+            "type": "boolean",
+            "title": "Reduced Motion"
+          },
+          "confirm_before_removing_project": {
+            "type": "boolean",
+            "title": "Confirm Before Removing Project"
+          },
+          "log_level": {
+            "type": "string",
+            "title": "Log Level"
+          },
+          "default_landing_page": {
+            "type": "string",
+            "title": "Default Landing Page"
+          },
+          "date_time_display": {
+            "type": "string",
+            "title": "Date Time Display"
+          },
+          "table_density": {
+            "type": "string",
+            "title": "Table Density"
+          },
+          "stale_project_days": {
+            "type": "integer",
+            "title": "Stale Project Days"
+          },
+          "default_sort": {
+            "type": "string",
+            "title": "Default Sort"
+          },
+          "notification_preferences": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Notification Preferences"
+          },
+          "notification_severity_threshold": {
+            "type": "string",
+            "title": "Notification Severity Threshold"
+          },
+          "notification_history_length": {
+            "type": "integer",
+            "title": "Notification History Length"
+          },
+          "saved_views": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Saved Views"
+          },
+          "active_saved_view": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Saved View"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema_version",
+          "onboarding_completed",
+          "projects",
+          "scan_roots",
+          "ignored_directories",
+          "maximum_scan_depth",
+          "maximum_repositories_per_root",
+          "maximum_directories_per_scan",
+          "scan_timeout_seconds",
+          "cache_duration_seconds",
+          "refresh_interval_seconds",
+          "maximum_commits_displayed",
+          "appearance",
+          "start_minimized",
+          "reduced_motion",
+          "confirm_before_removing_project",
+          "log_level",
+          "default_landing_page",
+          "date_time_display",
+          "table_density",
+          "stale_project_days",
+          "default_sort",
+          "notification_preferences",
+          "notification_severity_threshold",
+          "notification_history_length",
+          "saved_views",
+          "active_saved_view"
+        ],
+        "title": "SettingsResponse"
+      },
+      "SystemHistoryPoint": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "cpu_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpu Percent"
+          },
+          "memory_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Percent"
+          },
+          "scan_duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Duration Ms"
+          },
+          "refresh_succeeded": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Succeeded"
+          },
+          "warning_count": {
+            "type": "integer",
+            "title": "Warning Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp"
+        ],
+        "title": "SystemHistoryPoint"
+      },
+      "SystemHistoryResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SystemHistoryPoint"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "SystemHistoryResponse"
+      },
+      "SystemSummaryResponse": {
+        "properties": {
+          "cpu_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpu Percent"
+          },
+          "logical_processors": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logical Processors"
+          },
+          "memory_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Percent"
+          },
+          "memory_available_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Available Bytes"
+          },
+          "disk_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disk Percent"
+          },
+          "volumes": {
+            "items": {
+              "$ref": "#/components/schemas/DiskVolume"
+            },
+            "type": "array",
+            "title": "Volumes"
+          },
+          "process_uptime_seconds": {
+            "type": "integer",
+            "title": "Process Uptime Seconds"
+          },
+          "scan_worker_status": {
+            "type": "string",
+            "title": "Scan Worker Status"
+          },
+          "cache_status": {
+            "type": "string",
+            "title": "Cache Status"
+          },
+          "application_data_location": {
+            "type": "string",
+            "title": "Application Data Location"
+          },
+          "log_directory_location": {
+            "type": "string",
+            "title": "Log Directory Location"
+          },
+          "repositories_total": {
+            "type": "integer",
+            "title": "Repositories Total"
+          },
+          "clean_repositories": {
+            "type": "integer",
+            "title": "Clean Repositories"
+          },
+          "modified_repositories": {
+            "type": "integer",
+            "title": "Modified Repositories"
+          },
+          "repositories_with_warnings": {
+            "type": "integer",
+            "title": "Repositories With Warnings"
+          },
+          "average_health_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Health Score"
+          },
+          "last_successful_refresh": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Successful Refresh"
+          },
+          "refreshing": {
+            "type": "boolean",
+            "title": "Refreshing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cpu_percent",
+          "logical_processors",
+          "memory_percent",
+          "memory_available_bytes",
+          "disk_percent",
+          "volumes",
+          "process_uptime_seconds",
+          "scan_worker_status",
+          "cache_status",
+          "application_data_location",
+          "log_directory_location",
+          "repositories_total",
+          "clean_repositories",
+          "modified_repositories",
+          "repositories_with_warnings",
+          "average_health_score",
+          "last_successful_refresh",
+          "refreshing"
+        ],
+        "title": "SystemSummaryResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "@devpulse/desktop",
+  "private": true,
+  "version": "0.3.0-alpha.1",
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../node_modules/vite/bin/vite.js --host 127.0.0.1 --port 1420",
+    "build": "node ../../node_modules/typescript/bin/tsc -b && node ../../node_modules/vite/bin/vite.js build",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -b --pretty false",
+    "lint": "node ../../node_modules/eslint/bin/eslint.js . --max-warnings 0",
+    "test": "node ../../node_modules/vitest/vitest.mjs run",
+    "format:check": "node ../../node_modules/prettier/bin/prettier.cjs --check .",
+    "tauri": "node ../../node_modules/@tauri-apps/cli/tauri.js",
+    "bundle:nsis": "node ../../node_modules/@tauri-apps/cli/tauri.js build --bundles nsis -- --locked"
+  },
+  "dependencies": {
+    "@devpulse/shared-types": "0.3.0-alpha.1",
+    "@tanstack/react-query": "^5.90.20",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2.10.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.10.9",
+    "@types/react": "^19.2.13",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "jsdom": "^27.4.0",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  }
+}

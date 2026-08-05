@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "devpulse-local-core"
+version = "0.3.0a1"
+description = "Read-only local services for the DevPulse desktop application"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "DevPulse contributors" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development",
+]
+dependencies = [
+  "fastapi>=0.115,<1",
+  "gitpython>=3.1.43,<4",
+  "platformdirs>=4.3,<5",
+  "psutil>=6.1,<8",
+  "pydantic>=2.10,<3",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28,<1",
+  "pyinstaller>=6.11,<7",
+  "pytest>=8.3,<10",
+  "pytest-asyncio>=0.24,<2",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+devpulse-local-core = "devpulse_core.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["services/local-core/devpulse_core"]
+
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider -ra"
+testpaths = ["services/local-core/tests"]
+pythonpath = ["services/local-core"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["services/local-core/devpulse_core", "services/local-core/tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

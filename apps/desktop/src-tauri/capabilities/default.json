@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-default",
+  "description": "Minimal capability for the main DevPulse window. Sidecar and files remain Rust-owned.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open"]
+}

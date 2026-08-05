@@ -1,0 +1,39 @@
+{
+  "name": "devpulse",
+  "private": true,
+  "version": "0.3.0-alpha.1",
+  "description": "Professional desktop monitoring for local development workspaces",
+  "workspaces": [
+    "apps/desktop",
+    "packages/shared-types"
+  ],
+  "scripts": {
+    "dev": "npm run versions:check && npm --workspace @devpulse/desktop run tauri dev",
+    "build": "npm run versions:check && npm --workspace @devpulse/desktop run build",
+    "lint": "npm --workspace @devpulse/desktop run lint",
+    "typecheck": "npm --workspace @devpulse/shared-types run typecheck && npm --workspace @devpulse/desktop run typecheck",
+    "test": "npm --workspace @devpulse/desktop run test",
+    "format:check": "npm --workspace @devpulse/desktop run format:check",
+    "tauri": "npm --workspace @devpulse/desktop run tauri",
+    "versions:sync": "node scripts/sync-version.mjs",
+    "versions:check": "node scripts/sync-version.mjs --check",
+    "core:dev": ".venv\\Scripts\\python.exe -m devpulse_core --dev",
+    "core:test": ".venv\\Scripts\\python.exe -m pytest",
+    "core:lint": ".venv\\Scripts\\python.exe -m ruff check .",
+    "core:format:check": ".venv\\Scripts\\python.exe -m ruff format --check .",
+    "core:openapi": ".venv\\Scripts\\python.exe scripts/generate-openapi.py",
+    "performance:matrix": ".venv\\Scripts\\python.exe scripts/run-performance-matrix.py",
+    "sbom:generate": ".venv\\Scripts\\python.exe scripts/generate-sbom.py",
+    "docs:check": "node scripts/check-markdown-links.mjs",
+    "json:check": "node scripts/check-json.mjs",
+    "tauri:check": "node scripts/check-tauri-config.mjs",
+    "validate:local": "powershell -ExecutionPolicy Bypass -File scripts/run-local-validation.ps1",
+    "sidecar:build": "powershell -ExecutionPolicy Bypass -File scripts/build-sidecar.ps1",
+    "sidecar:test": "powershell -ExecutionPolicy Bypass -File scripts/test-packaged-sidecar.ps1",
+    "release:qa": "powershell -ExecutionPolicy Bypass -File scripts/release-qa.ps1",
+    "desktop:bundle": "npm run sidecar:build && npm --workspace @devpulse/desktop run bundle:nsis"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

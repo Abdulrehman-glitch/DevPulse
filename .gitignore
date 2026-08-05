@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.pytest_tmp/
+.test_runs/
+.ruff_cache/
+.mypy_cache/
+.pip-cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Node and frontend
+node_modules/
+apps/desktop/dist/
+packages/shared-types/dist/
+*.tsbuildinfo
+coverage/
+
+# Rust and Tauri
+target/
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/binaries/*
+!apps/desktop/src-tauri/binaries/.gitkeep
+apps/desktop/src-tauri/gen/
+
+# Runtime and local development data
+.devpulse-dev/
+.qa-runtime/
+logs/*.log*
+data/*
+!data/.gitkeep
+!logs/.gitkeep
+*.pid
+
+# Build and packaging outputs
+build/
+dist/
+release/
+*.spec
+
+# Executables and installers
+*.exe
+*.msi
+*.msix
+*.dll
+*.pdb
+*.lib
+
+# Dumps and databases
+*.dmp
+*.dump
+*.db
+*.sqlite
+*.sqlite3
+
+# Archives
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+
+# Certificates and keys
+*.key
+*.crt
+*.cer
+*.der
+*.pem
+*.pfx
+*.p12
+
+# Local release and QA output
+release-output/
+.qa-runtime/
+.tmp/
+.venv/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.suo
+*.user
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Project-local temporary files
+tmp/
