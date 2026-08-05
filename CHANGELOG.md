@@ -15,6 +15,12 @@ All notable changes to the curated public-history candidate will be documented h
 
 - Prepared application and package metadata for `0.3.0-alpha.1`.
 - Updated PostCSS, GitPython, and validation pip pins to remediate advisory findings.
+- Replaced the incomplete lockfile-only SBOM generator with deterministic CycloneDX output derived from the reviewed dependency inventory.
+
+### Fixed
+
+- Made packaged-sidecar event monitoring exhaustive so the release-mode desktop build compiles and fails closed on unsupported startup events.
+- Aligned the integrated local-validation command with the curated repository's workflow-free, installer-free staging policy.
 
 ### Security
 

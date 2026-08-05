@@ -2,6 +2,8 @@
 
 Run checks from a clean worktree with locked dependencies. Redirect caches and build output to an isolated workspace when preparing release evidence.
 
+`npm run validate:local` executes the integrated installer-free gate. It builds but does not launch the desktop executable and never executes an installer.
+
 ## Frontend
 
 ```powershell
@@ -30,6 +32,7 @@ Use an isolated `pip-audit` tool to scan the installed validation environment. T
 ```powershell
 cargo fmt --check --manifest-path apps/desktop/src-tauri/Cargo.toml
 cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+cargo check --release --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 cargo clippy --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 npm run tauri:check
@@ -42,4 +45,3 @@ Use an isolated `cargo-audit` binary and the RustSec database. Review target-exc
 Regenerate dependency compliance, scan the complete Git history for credentials and personal identity, reject prohibited artifact types, validate every documentation link and JSON/YAML file, compare all version locations, and verify no workflow directory exists during private staging.
 
 Installer execution is not part of ordinary local validation. Install/uninstall lifecycle testing must use an isolated Windows environment and the documented human gate; never test an installer against a normal user profile merely to make a build pass.
-
