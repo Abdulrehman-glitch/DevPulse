@@ -216,12 +216,17 @@ def cargo_inventory(root: Path) -> list[dict[str, Any]]:
 
 
 def python_direct_requirements(root: Path) -> tuple[list[Requirement], set[str]]:
-    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    manifest = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    project = manifest["project"]
     runtime = [Requirement(value) for value in project["dependencies"]]
     development = {
         canonicalize_name(Requirement(value).name)
         for value in project.get("optional-dependencies", {}).get("dev", [])
     }
+    development.update(
+        canonicalize_name(Requirement(value).name)
+        for value in manifest.get("build-system", {}).get("requires", [])
+    )
     return runtime, development
 
 

@@ -4,12 +4,12 @@ This review is generated deterministically from the committed npm and Cargo lock
 
 ## Summary
 
-- Components: 665
+- Components: 668
 - npm: 315
 - Cargo: 309
-- Python: 41
+- Python: 44
 - Runtime: 321
-- Build/development: 344
+- Build/development: 347
 
 The old aggregate UNKNOWN result is not used. Every component has an individual declaration, scope, evidence hash where available, and publication classification in `dependency-licences.json`.
 

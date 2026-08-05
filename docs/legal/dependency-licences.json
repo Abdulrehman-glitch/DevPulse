@@ -11983,6 +11983,40 @@
     },
     {
       "classification": "DEVELOPMENT-ONLY",
+      "declaredLicense": "MIT",
+      "deprecated": false,
+      "ecosystem": "python",
+      "integrity": null,
+      "licenseFiles": [
+        {
+          "name": "__init__.py",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "__init__.cpython-312.pyc",
+          "sha256": "df81843f102da0d9b7a60f2c2319246e2a5e13c42fe717d97cebb7f097b8554b"
+        },
+        {
+          "name": "supported.cpython-312.pyc",
+          "sha256": "999e762fbe18917375123fd8eb1ca754da44ae833404c498ff8f1111e3c7b2b5"
+        },
+        {
+          "name": "supported.py",
+          "sha256": "641fb474d6916e23ea297f2b8d8ae20addad1c8f65e2852e7ca4445e73ed92e6"
+        },
+        {
+          "name": "LICENSE.txt",
+          "sha256": "7f143a8127ad4873862d70854b5bd2abd0085aa73e64fd2b08704a3b9f5c07fc"
+        }
+      ],
+      "name": "hatchling",
+      "relationship": "direct",
+      "resolvedSource": "https://hatch.pypa.io/latest/",
+      "scope": "development",
+      "version": "1.31.0"
+    },
+    {
+      "classification": "DEVELOPMENT-ONLY",
       "declaredLicense": "BSD-3-Clause",
       "deprecated": false,
       "ecosystem": "python",
@@ -12120,6 +12154,24 @@
       "resolvedSource": "https://packaging.pypa.io/",
       "scope": "development",
       "version": "26.2"
+    },
+    {
+      "classification": "DEVELOPMENT-ONLY",
+      "declaredLicense": "Mozilla Public License 2.0 (MPL 2.0)",
+      "deprecated": false,
+      "ecosystem": "python",
+      "integrity": null,
+      "licenseFiles": [
+        {
+          "name": "LICENSE",
+          "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85"
+        }
+      ],
+      "name": "pathspec",
+      "relationship": "transitive",
+      "resolvedSource": "https://python-path-specification.readthedocs.io/en/latest/changes.html",
+      "scope": "development",
+      "version": "1.1.1"
     },
     {
       "classification": "DEVELOPMENT-ONLY",
@@ -12715,6 +12767,24 @@
       "version": "1.3.1"
     },
     {
+      "classification": "DEVELOPMENT-ONLY",
+      "declaredLicense": "Apache Software License",
+      "deprecated": false,
+      "ecosystem": "python",
+      "integrity": null,
+      "licenseFiles": [
+        {
+          "name": "LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ],
+      "name": "trove-classifiers",
+      "relationship": "transitive",
+      "resolvedSource": "https://github.com/pypa/trove-classifiers",
+      "scope": "development",
+      "version": "2026.6.1.19"
+    },
+    {
       "classification": "RESOLVED COMPATIBLE",
       "declaredLicense": "MIT",
       "deprecated": false,
@@ -12808,27 +12878,27 @@
   "inputs": {
     "cargoLockSha256": "41e46add7aeddc64e3809a0aa915826684ec36138e885fa1e1b0045244a89d9f",
     "npmLockSha256": "29a8ddcb50e1b375250b5322e06479e553a72f314654411d43be6da46c8f3c60",
-    "pythonLockSha256": "158058aaeec6e466485cf557ba3601c250724c51af96f6e4938c77a0cfe83a79"
+    "pythonLockSha256": "8b814ac82696ecc629096dda7ecec77c32e1ab74d135fa2d3439d5e74f669a5e"
   },
   "schemaVersion": 1,
   "summary": {
     "byClassification": {
-      "DEVELOPMENT-ONLY": 344,
+      "DEVELOPMENT-ONLY": 347,
       "RESOLVED COMPATIBLE": 316,
       "REVIEWED WITH NOTICE": 5
     },
     "byEcosystem": {
       "cargo": 309,
       "npm": 315,
-      "python": 41
+      "python": 44
     },
     "byScope": {
       "build": 20,
-      "development": 324,
+      "development": 327,
       "runtime": 321
     },
     "missingDeclaredLicense": 0,
-    "total": 665
+    "total": 668
   },
   "target": "x86_64-pc-windows-msvc"
 }
