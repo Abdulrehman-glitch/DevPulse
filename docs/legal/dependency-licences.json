@@ -10553,7 +10553,7 @@
       "declaredLicense": "MIT",
       "deprecated": false,
       "ecosystem": "npm",
-      "integrity": "sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==",
+      "integrity": "sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==",
       "licenseFiles": [
         {
           "name": "LICENSE",
@@ -10562,9 +10562,9 @@
       ],
       "name": "nanoid",
       "relationship": "transitive",
-      "resolvedSource": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.16.tgz",
+      "resolvedSource": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz",
       "scope": "development",
-      "version": "3.3.16"
+      "version": "3.3.18"
     },
     {
       "classification": "DEVELOPMENT-ONLY",
@@ -11961,7 +11961,7 @@
       "relationship": "direct",
       "resolvedSource": "https://github.com/gitpython-developers/GitPython",
       "scope": "runtime",
-      "version": "3.1.57"
+      "version": "3.1.58"
     },
     {
       "classification": "RESOLVED COMPATIBLE",
@@ -12877,8 +12877,8 @@
   ],
   "inputs": {
     "cargoLockSha256": "41e46add7aeddc64e3809a0aa915826684ec36138e885fa1e1b0045244a89d9f",
-    "npmLockSha256": "29a8ddcb50e1b375250b5322e06479e553a72f314654411d43be6da46c8f3c60",
-    "pythonLockSha256": "8b814ac82696ecc629096dda7ecec77c32e1ab74d135fa2d3439d5e74f669a5e"
+    "npmLockSha256": "4cfd133eb4fb849a9b01c97288c83991aa41f2144006a41fc17d758507dbe20a",
+    "pythonLockSha256": "594cd21e21f46b3a7faea3cd6cf5f8432cdc38528781431f2ae08936461e4cb4"
   },
   "schemaVersion": 1,
   "summary": {
