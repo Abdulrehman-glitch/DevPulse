@@ -2,14 +2,12 @@
 
 This roadmap describes direction, not fixed delivery dates or commitments.
 
-## Current staging and publication work
+## Release engineering
 
-- complete the Phase 1D human go/no-go review;
-- transition the repository name and visibility without importing private history;
-- enable cost-controlled public CI and then activate reviewed branch and tag rulesets;
-- enable and verify private vulnerability reporting;
-- validate installer install, upgrade, uninstall, and residue behavior in an isolated Windows environment;
-- publish `0.3.0-alpha.1` only after every launch gate passes.
+- add Windows code signing without weakening key custody;
+- expand disposable-runner compatibility coverage across supported Windows versions;
+- validate upgrade and rollback behavior once a trustworthy prior public installer exists;
+- keep release SBOM and artifact-attestation verification part of every public release gate.
 
 ## Reliability and architecture
 
@@ -44,4 +42,3 @@ This roadmap describes direction, not fixed delivery dates or commitments.
 - demonstrate reliable install/uninstall and data migration across supported Windows configurations;
 - establish sustainable external-contributor review and security-response practices;
 - resolve all release blockers and document a supported configuration contract.
-

@@ -4,13 +4,13 @@ DevPulse is a Windows desktop application for reviewing local development projec
 
 ## Status
 
-DevPulse is an alpha-stage, initially private publication candidate prepared as `0.3.0-alpha.1`. It is not a production support promise, and contributions are not accepted while staging remains private.
+DevPulse is an alpha-stage public project on the `0.3.0-alpha.1` release line. It is not yet a production support promise.
 
-This Git history starts with a curated pre-public baseline. Historical development and versions through `v0.2.0-beta.1` remain in a preserved private archive and are not recreated here. No public release has been issued from this history. See [PUBLICATION_STATUS.md](PUBLICATION_STATUS.md).
+This Git history starts with a curated pre-public baseline. Historical development and versions through `v0.2.0-beta.1` remain in a preserved private archive and are not recreated here. Public release provenance begins with the curated `v0.3.0-alpha.1` line. See [PUBLICATION_STATUS.md](PUBLICATION_STATUS.md).
 
 ## Supported platform
 
-The supported target is 64-bit Windows. The current build uses Tauri 2, the Microsoft WebView2 runtime already present on supported Windows systems, and a packaged CPython local-core sidecar. Cross-machine Windows compatibility and installer install/uninstall lifecycle testing remain pre-release gates; macOS and Linux are not currently supported claims.
+The supported target is 64-bit Windows. The current build uses Tauri 2, the Microsoft WebView2 runtime already present on supported Windows systems, and a packaged CPython local-core sidecar. Release installers must pass install, smoke, uninstall, reinstall, and residue checks on a disposable GitHub-hosted Windows runner. macOS and Linux are not currently supported claims.
 
 ## Capabilities
 
@@ -32,7 +32,7 @@ See [the system overview](docs/architecture/SYSTEM_OVERVIEW.md), [startup protoc
 
 DevPulse is local-first and does not include a hosted SaaS implementation. Project information is processed locally. Diagnostic exports can still contain project names or paths and must be reviewed before sharing. The scanner is intended to be read-only, but hostile filesystem races and a compromised same-user process are outside its security boundary.
 
-Current limitations include unsigned Windows artifacts, no updater, no public CI, no completed clean-machine installer lifecycle validation, a single maintainer, and an interim visual identity. No screenshot is included because the staging run did not need to launch the full desktop product to establish authenticity.
+Current limitations include unsigned Windows artifacts, no updater, a single maintainer, an interim visual identity, and a Windows-only support claim. Release artifacts are alpha quality and require a preinstalled WebView2 runtime.
 
 ## Development
 
@@ -62,11 +62,10 @@ Full setup, testing, and release instructions are in [docs/development](docs/dev
 
 ## Contributions and security
 
-Contribution intake is closed during private staging. Once the repository is public, proposed work will follow the issue-first, focused-pull-request, review, testing, and DCO-style sign-off process in [CONTRIBUTING.md](CONTRIBUTING.md).
+Proposed work follows the issue-first, focused-pull-request, review, testing, and DCO-style sign-off process in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Do not disclose suspected vulnerabilities in an ordinary issue. GitHub private vulnerability reporting will be enabled and verified as an immediate public-launch gate; follow [SECURITY.md](SECURITY.md) for the accurate current route.
+Do not disclose suspected vulnerabilities in an ordinary issue. Use GitHub private vulnerability reporting as described in [SECURITY.md](SECURITY.md).
 
 ## Roadmap and licence
 
 See [ROADMAP.md](ROADMAP.md) for direction without unsupported delivery dates. DevPulse source and documentation are licensed under [Apache License 2.0](LICENSE). Third-party components retain their own terms in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Project names and visual identity are addressed separately in [TRADEMARKS.md](TRADEMARKS.md).
-

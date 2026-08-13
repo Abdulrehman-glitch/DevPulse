@@ -45,7 +45,8 @@ def component(item: dict[str, object]) -> dict[str, object]:
 
 def main() -> None:
     inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
-    components = [component(item) for item in inventory["components"]]
+    shipped = [item for item in inventory["components"] if item["scope"] == "runtime"]
+    components = [component(item) for item in shipped]
     components.sort(key=lambda item: (str(item["purl"]), str(item["version"])))
     bom = {
         "bomFormat": "CycloneDX",
@@ -69,6 +70,14 @@ def main() -> None:
                     "value": str(inventory["schemaVersion"]),
                 },
                 {"name": "devpulse:target", "value": str(inventory["target"])},
+                {
+                    "name": "devpulse:component-selection",
+                    "value": "shipped runtime dependencies only",
+                },
+                {
+                    "name": "devpulse:excluded-non-runtime-components",
+                    "value": str(len(inventory["components"]) - len(shipped)),
+                },
             ],
         },
         "components": components,

@@ -40,7 +40,7 @@ if ($null -ne $Config.PSObject.Properties["plugins"] -and $null -ne $Config.plug
 }
 
 $Signature = Get-AuthenticodeSignature -LiteralPath $Installer.FullName
-if ($Signature.Status -ne "NotSigned") { throw "The beta installer must be reported and transferred as unsigned." }
+if ($Signature.Status -ne "NotSigned") { throw "The alpha installer must be reported and transferred as unsigned." }
 $InstallerBytes = [System.IO.File]::ReadAllBytes($Installer.FullName)
 $InstallerAscii = [System.Text.Encoding]::ASCII.GetString($InstallerBytes)
 if (-not $InstallerAscii.Contains("requestedExecutionLevel") -or -not $InstallerAscii.Contains("asInvoker")) {
@@ -140,7 +140,6 @@ $Manifest = [ordered]@{
     installerFilename = $Installer.Name
     installerByteSize = $Installer.Length
     installerSha256 = $InstallerHash
-    buildTimestampUtc = [DateTime]::UtcNow.ToString("o")
     runnerImage = $RunnerImage
     signingStatus = "unsigned"
     webView2InstallMode = $Config.bundle.windows.webviewInstallMode.type

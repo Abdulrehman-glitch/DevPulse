@@ -42,6 +42,6 @@ Use an isolated `cargo-audit` binary and the RustSec database. Review target-exc
 
 ## Publication checks
 
-Regenerate dependency compliance, scan the complete Git history for credentials and personal identity, reject prohibited artifact types, validate every documentation link and JSON/YAML file, compare all version locations, and verify no workflow directory exists during private staging.
+Regenerate dependency compliance, scan the complete Git history for credentials and personal identity, reject prohibited artifact types, validate every documentation link and JSON/YAML file, compare all version locations, and review every workflow for immutable action pins, least privilege, bounded runtime, and standard runners.
 
-Installer execution is not part of ordinary local validation. Install/uninstall lifecycle testing must use an isolated Windows environment and the documented human gate; never test an installer against a normal user profile merely to make a build pass.
+Installer execution is not part of ordinary local validation. Install/uninstall lifecycle testing is restricted by the harness to a GitHub-hosted disposable Windows runner; never test an installer against a normal user profile merely to make a build pass.

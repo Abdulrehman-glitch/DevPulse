@@ -1,6 +1,6 @@
 # Contributing
 
-Contribution intake is paused while this repository remains a private staging candidate. The following process applies after public launch unless the maintainer announces a narrower pilot.
+DevPulse accepts focused public issues and pull requests within the process below. The maintainer may narrow intake when review capacity is limited.
 
 ## Issue first
 
@@ -15,7 +15,7 @@ Use these branch patterns:
 - `test/<issue>-<slug>`
 - `release/<version>`
 
-Do not use ordinary direct development on `main` after public launch. Never force-push to or delete `main`.
+Do not use ordinary direct development on `main`. Never force-push to or delete `main`.
 
 ## Commits and sign-off
 
@@ -44,4 +44,3 @@ AI assistance does not replace review. Do not submit unreviewed AI-generated bul
 Acceptance requires passing format, lint, type, test, security, licence, prohibited-artifact, and production-build gates relevant to the change. The maintainer may request a smaller scope, additional evidence, or design discussion.
 
 At least the maintainer reviews ordinary changes; security and release-critical changes require explicit maintainer approval. Squash merge is the default, and the branch is deleted after merge. A pull request is not accepted until required checks pass and all conversations are resolved.
-

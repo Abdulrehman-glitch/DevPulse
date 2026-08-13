@@ -1,6 +1,6 @@
 # Release process
 
-Only the maintainer approves a release. This procedure prepares releases; it does not authorize repository visibility, a tag, or publication by itself.
+Only the maintainer approves a release. This procedure does not authorize a tag or publication by itself.
 
 ## Version update
 
@@ -17,13 +17,14 @@ For `0.3.0-alpha.1`, Windows resources that require four numeric fields use `0.3
 1. Start from reviewed `main` with a clean worktree and locked toolchains.
 2. Install dependencies from lockfiles and run every command in [TESTING.md](TESTING.md).
 3. Regenerate asset hashes, dependency licences, notices, vulnerability evidence, API contract, and any approved SBOM.
-4. Build the sidecar and production application. Store installers, executables, raw logs, and machine-specific reports only in private ignored output.
+4. Build the sidecar and production application. Store local executables, raw logs, and machine-specific reports only in ignored output.
 5. Inspect the installer without executing it. Record hashes, unsigned/signing state, bundled runtime, notices, and source commit.
-6. Perform install, upgrade, uninstall, rollback, and residue testing only in an isolated Windows environment approved for lifecycle testing.
-7. Review the complete history for secrets, personal identity, private paths, disputed media, workflows, tags, and prohibited artifacts.
+6. Dispatch `.github/workflows/release-qa.yml` with the full 40-character intended release commit. The workflow and selected commit must resolve to the same SHA.
+7. Require authentic NSIS install, authenticated smoke, uninstall, reinstall, final cleanup, runtime-only CycloneDX SBOM generation, checksum creation, and installer attestation on the standard GitHub-hosted Windows runner.
+8. Review the complete history and candidate assets for secrets, personal identity, private paths, disputed media, workflow policy, tags, and prohibited artifacts.
 
 ## Tag and publish
 
-After all required repository rules, CI checks, vulnerability reporting, code-signing status, provenance, SBOM, and human go/no-go gates pass, create the immutable `v*` tag through the release procedure. Build from that exact tag, verify artifact digests, and publish one prerelease with accurate limitations and rollback instructions.
+After all required repository rules, CI checks, vulnerability reporting, code-signing status, provenance, SBOM, and release-QA gates pass, create an annotated immutable `v*` tag at the already validated commit. Verify the tag target and artifact digests, then publish one prerelease with accurate limitations and rollback instructions.
 
 Never reuse, move, or recreate historical private tags. Never replace an asset beneath an existing release. If validation fails, do not tag; fix through a reviewed commit and rerun the complete gate.

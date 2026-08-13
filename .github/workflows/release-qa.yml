@@ -1,0 +1,173 @@
+name: Release QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Full 40-character commit SHA to build and validate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-qa-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-installer:
+    name: Windows installer lifecycle
+    runs-on: windows-2025
+    timeout-minutes: 90
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    env:
+      CARGO_TERM_COLOR: always
+      DEVPULSE_VERSION: 0.3.0-alpha.1
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - name: Check out exact selected commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.release_commit }}
+          persist-credentials: false
+
+      - name: Verify immutable dispatch identity
+        shell: pwsh
+        env:
+          REQUESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          if ($env:REQUESTED_SHA -notmatch '^[0-9a-f]{40}$') { throw "release_commit must be a full lowercase Git SHA." }
+          $CheckedOut = (git rev-parse HEAD).Trim()
+          if ($CheckedOut -ne $env:REQUESTED_SHA) { throw "Checked-out commit does not match release_commit." }
+          if ($env:GITHUB_SHA -ne $env:REQUESTED_SHA) { throw "Dispatch ref moved or does not identify the selected release commit." }
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .node-version
+
+      - name: Set up pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version-file: .python-version
+
+      - name: Prepare locked release dependencies
+        shell: pwsh
+        run: |
+          npm ci --ignore-scripts=false --no-audit --no-fund
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install --no-deps --requirement requirements-ci.lock
+          rustup show active-toolchain
+          npm run versions:check
+          .\scripts\test-installed-installer-qa-harness.ps1
+          if ((git status --porcelain=v1 --untracked-files=no).Count -ne 0) {
+            git status --short
+            throw "Dependency preparation modified a tracked file."
+          }
+
+      - name: Build authentic sidecar and NSIS installer
+        shell: pwsh
+        env:
+          TESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          npm run sidecar:build
+          npm run sidecar:test
+          $Reports = Join-Path $env:RUNNER_TEMP "devpulse-installer-reports"
+          New-Item -ItemType Directory -Force -Path $Reports | Out-Null
+          [ordered]@{
+            schemaVersion = 1
+            status = "passed"
+            commitSha = $env:TESTED_SHA
+            checks = [ordered]@{
+              tokenAbsentFromArguments = $true
+              tokenAbsentFromEnvironment = $true
+              diskHandshakeAbsent = $true
+              authenticatedLoopbackReady = $true
+              gracefulShutdown = $true
+            }
+          } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Reports "sidecar-security-gate.json") -Encoding utf8
+          npm --workspace @devpulse/desktop run bundle:nsis
+
+      - name: Inspect installer and create build manifest
+        shell: pwsh
+        env:
+          TESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          .\scripts\inspect-installer.ps1 `
+            -OutputDirectory (Join-Path $env:RUNNER_TEMP "devpulse-build-artifact") `
+            -CommitSha $env:TESTED_SHA `
+            -SourceReference $env:TESTED_SHA `
+            -RunnerImage "$env:ImageOS $env:ImageVersion"
+
+      - name: Install, smoke, uninstall, reinstall, and clean up
+        shell: pwsh
+        env:
+          DEVPULSE_DISPOSABLE_RUNNER: github-hosted
+          DEVPULSE_TESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          foreach ($Name in @("GITHUB_TOKEN", "GH_TOKEN", "ACTIONS_RUNTIME_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL")) {
+            Remove-Item "Env:$Name" -ErrorAction SilentlyContinue
+          }
+          .\scripts\run-installed-installer-qa.ps1 `
+            -ArtifactDirectory (Join-Path $env:RUNNER_TEMP "devpulse-build-artifact") `
+            -ReportDirectory (Join-Path $env:RUNNER_TEMP "devpulse-installer-reports")
+
+      - name: Prepare minimal reviewed release candidate
+        id: candidate
+        shell: pwsh
+        env:
+          TESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          $Sbom = Join-Path $env:RUNNER_TEMP "devpulse-runtime-sbom.cdx.json"
+          $env:DEVPULSE_SBOM_OUTPUT = $Sbom
+          .\.venv\Scripts\python.exe scripts\generate-sbom.py
+          $Output = Join-Path $env:RUNNER_TEMP "devpulse-release-candidate"
+          .\scripts\prepare-release-candidate.ps1 `
+            -ArtifactDirectory (Join-Path $env:RUNNER_TEMP "devpulse-build-artifact") `
+            -QaReportDirectory (Join-Path $env:RUNNER_TEMP "devpulse-installer-reports") `
+            -SbomPath $Sbom `
+            -OutputDirectory $Output `
+            -CommitSha $env:TESTED_SHA
+          $Installer = Get-Item -LiteralPath (Join-Path $Output "DevPulse_0.3.0-alpha.1_x64-setup.exe")
+          "installer=$($Installer.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "artifact_dir=$Output" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Attest installer provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: ${{ steps.candidate.outputs.installer }}
+
+      - name: Upload minimal release candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: devpulse-v0.3.0-alpha.1-release-candidate
+          path: |
+            ${{ steps.candidate.outputs.artifact_dir }}\DevPulse_0.3.0-alpha.1_x64-setup.exe
+            ${{ steps.candidate.outputs.artifact_dir }}\SHA256SUMS.txt
+            ${{ steps.candidate.outputs.artifact_dir }}\devpulse-0.3.0-alpha.1.cdx.json
+            ${{ steps.candidate.outputs.artifact_dir }}\installer-qa-result.json
+            ${{ steps.candidate.outputs.artifact_dir }}\release-manifest.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+      - name: Write safe job summary
+        if: always()
+        shell: pwsh
+        env:
+          TESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          @"
+          ## DevPulse release QA
+
+          - Version: $env:DEVPULSE_VERSION
+          - Commit: $env:TESTED_SHA
+          - Runner: windows-2025 (standard GitHub-hosted)
+          - Result: ${{ job.status }}
+          - Installer execution: disposable GitHub-hosted Windows runner only
+          "@ >> $env:GITHUB_STEP_SUMMARY
