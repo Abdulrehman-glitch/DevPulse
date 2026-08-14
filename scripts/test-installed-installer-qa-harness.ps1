@@ -13,8 +13,20 @@ $RustDesktopPath = Join-Path $Root "apps\desktop\src-tauri\src\lib.rs"
 $Harness = Get-Content -LiteralPath $HarnessPath -Raw
 $RustDesktop = Get-Content -LiteralPath $RustDesktopPath -Raw
 
-if ($WorkflowPaths.Count -ne 0) {
-    throw "The curated staging repository must not contain a GitHub Actions workflow."
+$ExpectedWorkflowNames = @("ci.yml", "release-qa.yml")
+$ActualWorkflowNames = @($WorkflowPaths | Select-Object -ExpandProperty Name | Sort-Object)
+if (@(Compare-Object $ExpectedWorkflowNames $ActualWorkflowNames).Count -ne 0) {
+    throw "The public repository must contain exactly the reviewed CI and release-QA workflows."
+}
+$WorkflowText = @($WorkflowPaths | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join "`n"
+$ReleaseWorkflow = Get-Content -LiteralPath (Join-Path $WorkflowDirectory "release-qa.yml") -Raw
+if ($WorkflowText -match '(?m)^\s*pull_request_target\s*:') {
+    throw "Public workflows must not use pull_request_target."
+}
+if (-not $ReleaseWorkflow.Contains("workflow_dispatch:")) { throw "Release QA lost its manual-only trigger." }
+if (-not $ReleaseWorkflow.Contains("runs-on: windows-2025")) { throw "Release QA lost its standard Windows runner." }
+if ($ReleaseWorkflow -match '(?m)^\s{2}(?:push|pull_request|schedule)\s*:') {
+    throw "Release QA must not run on push, pull request, or a schedule."
 }
 
 function Assert-Contains([string]$Text, [string]$Needle, [string]$Message) {
