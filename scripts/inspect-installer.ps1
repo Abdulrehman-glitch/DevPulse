@@ -36,7 +36,7 @@ if ($Config.bundle.windows.nsis.installerHooks -ne "installer-hooks.nsh") {
     throw "Only the reviewed DevPulse NSIS cleanup hook is permitted."
 }
 $InstallerHook = Join-Path $Root "apps\desktop\src-tauri\installer-hooks.nsh"
-$ExpectedInstallerHookSha256 = "9b346183bb493f0f8254318c2017dcadd8b42c07177558651b8a01bff2f8e5fa"
+$ExpectedInstallerHookSha256 = "a15aed73d66cc077e652738584e78e0087641cbccf36ff159a38d1a3f420418f"
 if (-not (Test-Path -LiteralPath $InstallerHook -PathType Leaf) -or
     (Get-FileHash -LiteralPath $InstallerHook -Algorithm SHA256).Hash -ne $ExpectedInstallerHookSha256) {
     throw "The reviewed NSIS cleanup hook changed unexpectedly."
