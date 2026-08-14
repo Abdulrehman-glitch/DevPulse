@@ -28,7 +28,7 @@ const installerHook = await readFile(
 );
 if (
   createHash("sha256").update(installerHook).digest("hex") !==
-  "9b346183bb493f0f8254318c2017dcadd8b42c07177558651b8a01bff2f8e5fa"
+  "a15aed73d66cc077e652738584e78e0087641cbccf36ff159a38d1a3f420418f"
 )
   throw new Error("The reviewed NSIS cleanup hook changed unexpectedly.");
 if (config.plugins?.updater || config.bundle.createUpdaterArtifacts)
