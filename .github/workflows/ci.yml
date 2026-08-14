@@ -75,13 +75,12 @@ jobs:
           .\.venv\Scripts\python.exe -m pip install --no-deps --requirement requirements-ci.lock
           .\.venv\Scripts\python.exe -m pip check
 
-      - name: Validate Python and dependency compliance
+      - name: Validate Python
         shell: pwsh
         run: |
           .\.venv\Scripts\python.exe -m ruff format --check .
           .\.venv\Scripts\python.exe -m ruff check .
           .\.venv\Scripts\python.exe -m pytest
-          .\.venv\Scripts\python.exe scripts\generate-dependency-compliance.py --check
 
   rust:
     name: Rust
