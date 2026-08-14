@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -20,8 +21,16 @@ if (config.bundle.windows.nsis.installMode !== "currentUser")
   throw new Error("NSIS must use current-user mode.");
 if (config.bundle.publisher !== "DevPulse contributors")
   throw new Error("Unexpected publisher metadata.");
-if (config.bundle.windows.nsis.installerHooks)
-  throw new Error("Custom NSIS installer hooks are forbidden.");
+if (config.bundle.windows.nsis.installerHooks !== "installer-hooks.nsh")
+  throw new Error("Only the reviewed DevPulse NSIS cleanup hook is permitted.");
+const installerHook = await readFile(
+  resolve(root, "apps/desktop/src-tauri/installer-hooks.nsh"),
+);
+if (
+  createHash("sha256").update(installerHook).digest("hex") !==
+  "9b346183bb493f0f8254318c2017dcadd8b42c07177558651b8a01bff2f8e5fa"
+)
+  throw new Error("The reviewed NSIS cleanup hook changed unexpectedly.");
 if (config.plugins?.updater || config.bundle.createUpdaterArtifacts)
   throw new Error("Automatic updates must remain disabled.");
 if (!config.app.security.csp || config.app.security.csp.includes("*://"))
