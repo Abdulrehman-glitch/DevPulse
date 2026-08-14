@@ -700,6 +700,33 @@ function Get-InstalledSidecar {
     return $Candidates[0].FullName
 }
 
+function Test-ExpectedInstalledDescendant($Process, [int]$SidecarPid) {
+    $Name = [string]$Process.Name
+    if ($Name -match "^(devpulse-desktop|devpulse-local-core|msedgewebview2)\.exe$") {
+        return $true
+    }
+    if ($Name -ine "conhost.exe" -or [int]$Process.ParentProcessId -ne $SidecarPid) {
+        return $false
+    }
+
+    # A console-subsystem PyInstaller sidecar can receive the ordinary Windows console
+    # host even when its parent requests a hidden window. Treat only the canonical
+    # System32 binary owned directly by the already-verified sidecar as expected.
+    $ExpectedConsoleHost = Join-Path $env:SystemRoot "System32\conhost.exe"
+    if ([string]::IsNullOrWhiteSpace([string]$Process.ExecutablePath) -or
+        -not [string]::Equals(
+            [System.IO.Path]::GetFullPath([string]$Process.ExecutablePath),
+            [System.IO.Path]::GetFullPath($ExpectedConsoleHost),
+            [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+        return $false
+    }
+    if ([string]$Process.CommandLine -match '(?i)--token(?:\s|=)|--handshake-file(?:\s|=)|X-DevPulse-Token|Authorization') {
+        return $false
+    }
+    return $true
+}
+
 function New-InstalledStartInfo([string]$Executable, [hashtable]$Variables) {
     $StartInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $StartInfo.FileName = $Executable
@@ -910,9 +937,14 @@ function Invoke-AutomatedSmoke([string]$Executable, [string]$Kind) {
         $Sidecar = Get-CimInstance Win32_Process -Filter "ProcessId = $SidecarPid" -ErrorAction SilentlyContinue
         if ($null -eq $Sidecar -or [int]$Sidecar.ParentProcessId -ne $Process.Id) { throw "$Kind sidecar parentage was invalid." }
         if (-not (Test-ProcessInJob $SidecarPid)) { throw "$Kind sidecar was not contained in a Windows Job Object." }
-        $UnexpectedNames = @($Ids | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue } | Where-Object {
-            $_.ProcessName -notmatch "^(devpulse-desktop|devpulse-local-core|msedgewebview2)$"
-        } | Select-Object -ExpandProperty ProcessName -Unique)
+        if ([string]$Sidecar.CommandLine -match '(?i)--token(?:\s|=)|--handshake-file(?:\s|=)|X-DevPulse-Token|Authorization') {
+            throw "$Kind placed a secret transport marker on the sidecar command line."
+        }
+        $UnexpectedNames = @($Ids | ForEach-Object {
+            Get-CimInstance Win32_Process -Filter "ProcessId = $_" -ErrorAction SilentlyContinue
+        } | Where-Object {
+            -not (Test-ExpectedInstalledDescendant $_ $SidecarPid)
+        } | Select-Object -ExpandProperty Name -Unique)
         if ($UnexpectedNames.Count -gt 0) { throw "$Kind created unexpected descendants: $($UnexpectedNames -join ', ')." }
         $NonLoopback = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object {
             $_.OwningProcess -in $Ids -and $_.LocalAddress -notin @("127.0.0.1", "::1")
