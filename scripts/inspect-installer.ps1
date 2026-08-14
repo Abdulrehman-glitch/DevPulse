@@ -32,8 +32,14 @@ if ($Config.bundle.windows.webviewInstallMode.type -ne "skip") { throw "Unexpect
 if ($Config.bundle.publisher -ne "DevPulse contributors" -or $Config.productName -ne "DevPulse") {
     throw "Product and publisher metadata are inconsistent."
 }
-if ($null -ne $Config.bundle.windows.nsis.PSObject.Properties["installerHooks"]) {
-    throw "Custom installer hooks are not permitted."
+if ($Config.bundle.windows.nsis.installerHooks -ne "installer-hooks.nsh") {
+    throw "Only the reviewed DevPulse NSIS cleanup hook is permitted."
+}
+$InstallerHook = Join-Path $Root "apps\desktop\src-tauri\installer-hooks.nsh"
+$ExpectedInstallerHookSha256 = "9b346183bb493f0f8254318c2017dcadd8b42c07177558651b8a01bff2f8e5fa"
+if (-not (Test-Path -LiteralPath $InstallerHook -PathType Leaf) -or
+    (Get-FileHash -LiteralPath $InstallerHook -Algorithm SHA256).Hash -ne $ExpectedInstallerHookSha256) {
+    throw "The reviewed NSIS cleanup hook changed unexpectedly."
 }
 if ($null -ne $Config.PSObject.Properties["plugins"] -and $null -ne $Config.plugins.PSObject.Properties["updater"]) {
     throw "Automatic update configuration is not permitted."

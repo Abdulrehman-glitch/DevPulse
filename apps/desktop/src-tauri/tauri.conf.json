@@ -51,7 +51,8 @@
       },
       "nsis": {
         "installMode": "currentUser",
-        "startMenuFolder": "DevPulse"
+        "startMenuFolder": "DevPulse",
+        "installerHooks": "installer-hooks.nsh"
       }
     }
   }
