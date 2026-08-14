@@ -4,6 +4,7 @@
 ; current-user shortcut in the supported post-uninstall hook.
 !macro NSIS_HOOK_POSTUNINSTALL
   Delete "$DESKTOP\${PRODUCTNAME}.lnk"
+  Delete "$SMPROGRAMS\${STARTMENUFOLDER}\${PRODUCTNAME}.lnk"
   ; Non-recursive: removes the product folder only when the standard uninstaller
   ; already removed every shortcut and the directory is empty.
   RMDir "$SMPROGRAMS\${STARTMENUFOLDER}"
