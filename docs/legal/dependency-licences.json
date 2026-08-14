@@ -11989,22 +11989,6 @@
       "integrity": null,
       "licenseFiles": [
         {
-          "name": "__init__.py",
-          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        {
-          "name": "__init__.cpython-312.pyc",
-          "sha256": "df81843f102da0d9b7a60f2c2319246e2a5e13c42fe717d97cebb7f097b8554b"
-        },
-        {
-          "name": "supported.cpython-312.pyc",
-          "sha256": "999e762fbe18917375123fd8eb1ca754da44ae833404c498ff8f1111e3c7b2b5"
-        },
-        {
-          "name": "supported.py",
-          "sha256": "641fb474d6916e23ea297f2b8d8ae20addad1c8f65e2852e7ca4445e73ed92e6"
-        },
-        {
           "name": "LICENSE.txt",
           "sha256": "7f143a8127ad4873862d70854b5bd2abd0085aa73e64fd2b08704a3b9f5c07fc"
         }
@@ -12121,22 +12105,6 @@
       "integrity": null,
       "licenseFiles": [
         {
-          "name": "__init__.py",
-          "sha256": "fc9c745d1883ff9f296a5b169f22eb2ee879f59a4608f20f5cb29d668f4e26f4"
-        },
-        {
-          "name": "__init__.cpython-312.pyc",
-          "sha256": "a550bb7f9364af724871a2439748b512758987d95d3059a5e9c7bff000dc2001"
-        },
-        {
-          "name": "_spdx.cpython-312.pyc",
-          "sha256": "8e92408e897201321d53abf8e70236b05492cd915f54fa2a713793dd33c4b8de"
-        },
-        {
-          "name": "_spdx.py",
-          "sha256": "596ec35e2ca0ebcba9fd8343ff0a51625af548786257815f24b41f7e08613314"
-        },
-        {
           "name": "LICENSE",
           "sha256": "cad1ef5bd340d73e074ba614d26f7deaca5c7940c3d8c34852e65c4909686c48"
         },
@@ -12233,22 +12201,6 @@
         {
           "name": "LICENSE.BSD",
           "sha256": "b70e7e9b742f1cc6f948b34c16aa39ffece94196364bc88ff0d2180f0028fac5"
-        },
-        {
-          "name": "__init__.py",
-          "sha256": "fc9c745d1883ff9f296a5b169f22eb2ee879f59a4608f20f5cb29d668f4e26f4"
-        },
-        {
-          "name": "__init__.cpython-312.pyc",
-          "sha256": "38a065b3659c77028b5275f38257f076d407ee255c311aa9a17414dd88b16da7"
-        },
-        {
-          "name": "_spdx.cpython-312.pyc",
-          "sha256": "50ccf7c197f3967db3a6eed393bbdb6ade54de77fa15c1d3adf5e46959fa555e"
-        },
-        {
-          "name": "_spdx.py",
-          "sha256": "596ec35e2ca0ebcba9fd8343ff0a51625af548786257815f24b41f7e08613314"
         },
         {
           "name": "LICENSE",
@@ -12674,22 +12626,6 @@
         {
           "name": "LICENSE",
           "sha256": "09f1c8c9e941af3e584d59641ea9b87d83c0cb0fd007eb5ef391a7e2643c1a46"
-        },
-        {
-          "name": "__init__.py",
-          "sha256": "4f05cb1d9097c1281d17044b3f15bad364fa99289eba74851cce9fa7ca605bbf"
-        },
-        {
-          "name": "__init__.cpython-312.pyc",
-          "sha256": "363c25dfe08bd6b2cdffcc9516d42cba7726a83c7a6cab591bed0fd9c776352f"
-        },
-        {
-          "name": "_spdx.cpython-312.pyc",
-          "sha256": "48807bbca4911315f8f7305d4122cd664277d4c4e6fb4206b902f4ef92d7ef97"
-        },
-        {
-          "name": "_spdx.py",
-          "sha256": "596ec35e2ca0ebcba9fd8343ff0a51625af548786257815f24b41f7e08613314"
         },
         {
           "name": "LICENSE",

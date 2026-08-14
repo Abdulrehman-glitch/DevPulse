@@ -295,12 +295,15 @@ def python_inventory(root: Path) -> list[dict[str, Any]]:
             Path(value).name.lower()
             for value in (distribution.metadata.get_all("License-File") or [])
         }
-        candidates = [
-            Path(distribution.locate_file(value))
-            for value in (distribution.files or [])
-            if "licenses" in {part.lower() for part in Path(value).parts}
-            or Path(value).name.lower() in declared_files
-        ]
+        candidates = []
+        for value in distribution.files or []:
+            relative = Path(value)
+            parts = {part.lower() for part in relative.parts}
+            metadata_license_directory = "licenses" in parts and any(
+                part.lower().endswith((".dist-info", ".egg-info")) for part in relative.parts
+            )
+            if relative.name.lower() in declared_files or metadata_license_directory:
+                candidates.append(Path(distribution.locate_file(value)))
         project_urls = distribution.metadata.get_all("Project-URL") or []
         source_url = next(
             (value.split(",", 1)[1].strip() for value in project_urls if "," in value),
