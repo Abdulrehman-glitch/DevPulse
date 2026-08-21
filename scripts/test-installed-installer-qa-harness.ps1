@@ -84,6 +84,8 @@ Assert-Contains $Harness 'Test-LifecycleChildSnapshotRelationship' "Installed QA
 Assert-Contains $Harness 'UseShellExecute = $false' "Installed QA lost its child-only environment launch boundary."
 Assert-Contains $Harness 'DEVPULSE_DATA_DIR = $QaRoot' "The canonical QA root is not propagated to the installed child."
 Assert-Contains $Harness '$QaRootLeaf = "DevPulse-QA-installed"' "The installed QA root can no longer exercise safe alternate path names."
+Assert-Contains $Harness '$QaSandboxParent = [IO.Path]::GetPathRoot($env:SystemRoot)' "Installed QA no longer avoids runner-owned workspace reparse aliases."
+Assert-Contains $Harness '$Candidate -ne [System.IO.Path]::GetFullPath($QaRoot)' "QA cleanup is no longer restricted to the exact owned root."
 Assert-Contains $Harness 'APPDATA = $QaRoamingAppData' "Roaming AppData is not isolated for the installed child."
 Assert-Contains $Harness 'LOCALAPPDATA = $QaLocalAppData' "Local AppData is not isolated for the installed child."
 Assert-Contains $Harness 'Invoke-QaGateRefusalTests' "Partial QA launches are no longer tested for safe refusal."

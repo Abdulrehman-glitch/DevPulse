@@ -51,17 +51,21 @@ if (
     $QaRootLeaf.Contains('\') -or
     $QaRootLeaf.Contains('/')
 ) {
-    throw "QA root leaf must be one safe directory name beneath RUNNER_TEMP."
+    throw "QA root leaf must be one safe dedicated directory name."
 }
-$QaRoot = Join-Path $env:RUNNER_TEMP $QaRootLeaf
-$CanonicalRunnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
-if ([IO.Path]::GetFullPath($QaRoot) -notlike "$CanonicalRunnerTemp\*") {
-    throw "QA root escaped RUNNER_TEMP."
+$QaSandboxParent = [IO.Path]::GetPathRoot($env:SystemRoot)
+$QaRoot = Join-Path $QaSandboxParent $QaRootLeaf
+$CanonicalQaSandboxParent = [IO.Path]::GetFullPath($QaSandboxParent)
+if (
+    [IO.Path]::GetFullPath([IO.Path]::GetDirectoryName($QaRoot)) -ne $CanonicalQaSandboxParent -or
+    [IO.Path]::GetFileName($QaRoot) -notlike "DevPulse-QA*"
+) {
+    throw "QA root escaped its dedicated disposable-runner sandbox boundary."
 }
 $QaRoamingAppData = Join-Path $QaRoot "process-env\roaming"
 $QaLocalAppData = Join-Path $QaRoot "process-env\local"
 $QaWebView2Data = Join-Path $QaRoot "webview2"
-$InvalidTraversalTarget = Join-Path $env:RUNNER_TEMP "DevPulse-QA-invalid-escape"
+$InvalidTraversalTarget = Join-Path $QaSandboxParent "DevPulse-QA-invalid-escape"
 $ProductionDataPaths = @(
     (Join-Path $env:APPDATA "com.devpulse.desktop"),
     (Join-Path $env:APPDATA "DevPulse"),
@@ -102,6 +106,7 @@ function ConvertTo-SafePath([string]$Path) {
     if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
     $Safe = $Path
     foreach ($Replacement in @(
+        [pscustomobject]@{ source = $QaRoot; target = "%QA_ROOT%" },
         [pscustomobject]@{ source = $env:GITHUB_WORKSPACE; target = "%GITHUB_WORKSPACE%" },
         [pscustomobject]@{ source = $env:RUNNER_TEMP; target = "%RUNNER_TEMP%" },
         [pscustomobject]@{ source = $env:LOCALAPPDATA; target = "%LOCALAPPDATA%" },
@@ -789,7 +794,7 @@ function Start-InstalledQa([string]$Executable, [bool]$Automation, [bool]$FailSt
         qaMode = $true
         installQa = $true
         childOnlyEnvironment = $true
-    }) -ProcessIds @($Process.Id) -SafePathIdentifiers @("%RUNNER_TEMP%\DevPulse-QA-installed")
+    }) -ProcessIds @($Process.Id) -SafePathIdentifiers @("%QA_ROOT%")
     return $Process
 }
 
@@ -1052,12 +1057,15 @@ function Assert-PathInsideQaRoot([string]$Path, [string]$Label) {
 
 function Remove-ValidatedQaRuntime([string]$Path, [string]$Reason) {
     $Candidate = [System.IO.Path]::GetFullPath($Path)
-    $ApprovedRoot = [System.IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
+    $ApprovedRoot = [System.IO.Path]::GetFullPath($QaSandboxParent).TrimEnd('\')
     if ([string]::IsNullOrWhiteSpace($Candidate) -or $Candidate -eq [System.IO.Path]::GetPathRoot($Candidate)) {
         throw "QA cleanup refused an empty path or filesystem root."
     }
+    if ($Candidate -ne [System.IO.Path]::GetFullPath($QaRoot)) {
+        throw "QA cleanup refused any target other than the exact owned QA root."
+    }
     if (-not $Candidate.StartsWith("$ApprovedRoot\", [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "QA cleanup refused a path outside the approved runner-temporary root."
+        throw "QA cleanup refused a path outside the approved disposable-runner sandbox parent."
     }
     if ([System.IO.Path]::GetFileName($Candidate) -notlike "DevPulse-QA*") {
         throw "QA cleanup refused a directory without the dedicated DevPulse-QA name."

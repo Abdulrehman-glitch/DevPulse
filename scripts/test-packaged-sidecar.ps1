@@ -2,9 +2,29 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$QaRoot = Join-Path $Root ".qa-runtime\DevPulse-QA-sidecar smoke 文档"
+$DisposableRunner = (
+    $env:GITHUB_ACTIONS -eq "true" -and
+    $env:RUNNER_ENVIRONMENT -eq "github-hosted" -and
+    $env:RUNNER_OS -eq "Windows"
+)
+$QaRoot = if ($DisposableRunner) {
+    $SystemDriveRoot = [IO.Path]::GetPathRoot($env:SystemRoot)
+    Join-Path $SystemDriveRoot "DevPulse-QA-sidecar smoke 文档-$PID"
+} else {
+    Join-Path $Root ".qa-runtime\DevPulse-QA-sidecar smoke 文档"
+}
 $Expected = [System.IO.Path]::GetFullPath($QaRoot)
-if ($Expected -notlike "$Root\.qa-runtime\*") { throw "Unsafe sidecar smoke-test root." }
+if ($DisposableRunner) {
+    $ExpectedParent = [IO.Path]::GetFullPath([IO.Path]::GetDirectoryName($Expected))
+    if (
+        $ExpectedParent -ne [IO.Path]::GetFullPath($SystemDriveRoot) -or
+        [IO.Path]::GetFileName($Expected) -notlike "DevPulse-QA-sidecar*"
+    ) {
+        throw "Unsafe disposable-runner sidecar smoke-test root."
+    }
+} elseif ($Expected -notlike "$Root\.qa-runtime\*") {
+    throw "Unsafe local sidecar smoke-test root."
+}
 New-Item -ItemType Directory -Force -Path $QaRoot | Out-Null
 $QaRoamingAppData = Join-Path $QaRoot "process-env\roaming"
 $QaLocalAppData = Join-Path $QaRoot "process-env\local"
@@ -142,4 +162,16 @@ finally {
         $Process.WaitForExit()
     }
     $Token = $null
+    if ($DisposableRunner -and (Test-Path -LiteralPath $QaRoot -PathType Container)) {
+        $CleanupTarget = (Resolve-Path -LiteralPath $QaRoot).Path
+        if (
+            [IO.Path]::GetFullPath([IO.Path]::GetDirectoryName($CleanupTarget)) -ne [IO.Path]::GetFullPath($SystemDriveRoot) -or
+            [IO.Path]::GetFileName($CleanupTarget) -notlike "DevPulse-QA-sidecar*" -or
+            (Get-Item -LiteralPath $CleanupTarget -Force).Attributes.HasFlag([IO.FileAttributes]::ReparsePoint) -or
+            (Test-Path -LiteralPath (Join-Path $CleanupTarget ".git"))
+        ) {
+            throw "Refusing to clean an unvalidated disposable-runner sidecar fixture."
+        }
+        Remove-Item -LiteralPath $CleanupTarget -Recurse -Force
+    }
 }
