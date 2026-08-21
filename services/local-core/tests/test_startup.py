@@ -94,6 +94,28 @@ def test_obsolete_secret_arguments_are_rejected_without_echo(
     assert stopped.value.code == 78
     captured = capsys.readouterr()
     assert TOKEN not in captured.out + captured.err
+    assert captured.err.strip() == "DEVPULSE_STARTUP_ERROR launch_protocol"
+
+
+@pytest.mark.parametrize(
+    ("requested", "reported"),
+    [
+        ("access_credential", "access_credential"),
+        ("qa_failure_injection", "qa_failure_injection"),
+        ("qa_path_boundary", "qa_path_boundary"),
+        (TOKEN, "startup_validation"),
+    ],
+)
+def test_startup_reason_codes_are_bounded_and_never_echo_input(
+    requested: str, reported: str, capsys
+) -> None:
+    with pytest.raises(SystemExit) as stopped:
+        main_module.stop_startup(requested)
+    assert stopped.value.code == 78
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.strip() == f"DEVPULSE_STARTUP_ERROR {reported}"
+    assert TOKEN not in captured.out + captured.err
 
 
 def test_rust_and_python_protocol_versions_agree() -> None:
