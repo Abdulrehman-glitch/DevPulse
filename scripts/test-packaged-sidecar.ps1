@@ -60,6 +60,7 @@ $StartInfo.CreateNoWindow = $true
 $StartInfo.RedirectStandardInput = $true
 $StartInfo.RedirectStandardOutput = $true
 $StartInfo.RedirectStandardError = $true
+$Utf8NoBom = [Text.UTF8Encoding]::new($false)
 $StartInfo.Arguments = "--data-dir `"$QaRoot`" --qa-mode"
 foreach ($Entry in @{
     DEVPULSE_QA_MODE = "1"
@@ -86,15 +87,26 @@ if (@($StartInfo.Environment.Values | Where-Object { $_ -eq $Token }).Count -ne 
 $Process = [System.Diagnostics.Process]::new()
 $Process.StartInfo = $StartInfo
 try {
-    if (-not $Process.Start()) { throw "Could not start the packaged sidecar." }
+    # Windows PowerShell's Process API constructs redirected stdin with the current
+    # console input encoding and has no StandardInputEncoding property. Select the
+    # protocol encoding only while that writer is constructed, then restore it.
+    $OriginalConsoleInputEncoding = [Console]::InputEncoding
+    try {
+        [Console]::InputEncoding = $Utf8NoBom
+        if (-not $Process.Start()) { throw "Could not start the packaged sidecar." }
+    }
+    finally {
+        [Console]::InputEncoding = $OriginalConsoleInputEncoding
+    }
     $ErrorRead = $Process.StandardError.ReadToEndAsync()
     # The protocol is UTF-8, independent of the runner console/code-page defaults.
-    # Write the frame bytes directly so StreamWriter cannot select UTF-16 or add a BOM.
-    $Utf8NoBom = [Text.UTF8Encoding]::new($false)
-    $LaunchFrame = $Utf8NoBom.GetBytes("DEVPULSE_LAUNCH $Launch`n")
-    if ($LaunchFrame.Length -gt 1025) { throw "The packaged sidecar launch frame exceeded its byte bound." }
-    $Process.StandardInput.BaseStream.Write($LaunchFrame, 0, $LaunchFrame.Length)
-    $Process.StandardInput.BaseStream.Flush()
+    # Configure the redirected writer before process start so it cannot prepend a default BOM.
+    $LaunchFrame = "DEVPULSE_LAUNCH $Launch`n"
+    if ($Utf8NoBom.GetByteCount($LaunchFrame) -gt 1025) {
+        throw "The packaged sidecar launch frame exceeded its byte bound."
+    }
+    $Process.StandardInput.Write($LaunchFrame)
+    $Process.StandardInput.Flush()
     $Process.StandardInput.Close()
 
     $ReadyRead = $Process.StandardOutput.ReadLineAsync()
