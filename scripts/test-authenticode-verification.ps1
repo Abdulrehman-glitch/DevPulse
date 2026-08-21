@@ -75,7 +75,7 @@ function Invoke-BoundedTool {
 
 function Add-EphemeralTestTrust {
     param(
-        [Parameter(Mandatory = $true)][ValidateSet("TrustedPeople", "TrustedPublisher")][string]$StoreName,
+        [Parameter(Mandatory = $true)][ValidateSet("Root", "TrustedPublisher")][string]$StoreName,
         [Parameter(Mandatory = $true)]$Certificate
     )
     $Store = [Security.Cryptography.X509Certificates.X509Store]::new(
@@ -94,7 +94,7 @@ function Add-EphemeralTestTrust {
 
 function Remove-EphemeralTestTrust {
     param(
-        [Parameter(Mandatory = $true)][ValidateSet("TrustedPeople", "TrustedPublisher")][string]$StoreName,
+        [Parameter(Mandatory = $true)][ValidateSet("Root", "TrustedPublisher")][string]$StoreName,
         [Parameter(Mandatory = $true)]$Certificate
     )
     $Store = [Security.Cryptography.X509Certificates.X509Store]::new(
@@ -121,7 +121,7 @@ if ($CanonicalTestRoot -notlike "$RunnerTemp\*") { throw "Ephemeral signing test
 $Certificate = $null
 $PublicOnlyCertificate = $null
 $UntrustedCertificate = $null
-$TrustedPeopleInstalled = $false
+$RootInstalled = $false
 $TrustedPublisherInstalled = $false
 try {
     New-Item -ItemType Directory -Force -Path $TestRoot | Out-Null
@@ -147,8 +147,11 @@ try {
         -NotAfter (Get-Date).AddDays(1)
     Export-Certificate -Cert $Certificate -FilePath $PublicCertificate -Force | Out-Null
     $PublicOnlyCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($PublicCertificate)
-    Add-EphemeralTestTrust -StoreName "TrustedPeople" -Certificate $PublicOnlyCertificate
-    $TrustedPeopleInstalled = $true
+    # Authenticode chain validation requires a trust anchor. TrustedPeople alone
+    # still produces NotTrusted on hosted Windows, so install only the public
+    # TEST certificate in this disposable runner's CurrentUser Root store.
+    Add-EphemeralTestTrust -StoreName "Root" -Certificate $PublicOnlyCertificate
+    $RootInstalled = $true
     Add-EphemeralTestTrust -StoreName "TrustedPublisher" -Certificate $PublicOnlyCertificate
     $TrustedPublisherInstalled = $true
 
@@ -170,8 +173,8 @@ try {
     Write-Host "Authenticode TEST phase 5/6: remove temporary trust and classify untrusted signature."
     Remove-EphemeralTestTrust -StoreName "TrustedPublisher" -Certificate $PublicOnlyCertificate
     $TrustedPublisherInstalled = $false
-    Remove-EphemeralTestTrust -StoreName "TrustedPeople" -Certificate $PublicOnlyCertificate
-    $TrustedPeopleInstalled = $false
+    Remove-EphemeralTestTrust -StoreName "Root" -Certificate $PublicOnlyCertificate
+    $RootInstalled = $false
     $UntrustedCertificate = New-SelfSignedCertificate `
         -Type CodeSigningCert `
         -Subject "CN=DevPulse Untrusted Ephemeral TEST Certificate Only" `
@@ -209,8 +212,8 @@ finally {
     if ($TrustedPublisherInstalled -and $null -ne $PublicOnlyCertificate) {
         try { Remove-EphemeralTestTrust -StoreName "TrustedPublisher" -Certificate $PublicOnlyCertificate } catch { Write-Warning "Disposable TEST publisher cleanup did not complete before runner disposal." }
     }
-    if ($TrustedPeopleInstalled -and $null -ne $PublicOnlyCertificate) {
-        try { Remove-EphemeralTestTrust -StoreName "TrustedPeople" -Certificate $PublicOnlyCertificate } catch { Write-Warning "Disposable TEST peer-trust cleanup did not complete before runner disposal." }
+    if ($RootInstalled -and $null -ne $PublicOnlyCertificate) {
+        try { Remove-EphemeralTestTrust -StoreName "Root" -Certificate $PublicOnlyCertificate } catch { Write-Warning "Disposable TEST root cleanup did not complete before runner disposal." }
     }
     if ($null -ne $Certificate) {
         Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($Certificate.Thumbprint)" -ErrorAction SilentlyContinue
