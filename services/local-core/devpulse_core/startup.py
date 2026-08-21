@@ -18,10 +18,31 @@ LAUNCH_PREFIX = b"DEVPULSE_LAUNCH "
 READY_PREFIX = "DEVPULSE_READY "
 _TOKEN_PATTERN = re.compile(r"[0-9a-f]{64}")
 _LEGACY_SECRET_OPTIONS = ("--token", "--handshake-file")
+SAFE_LAUNCH_REASON_CODES = frozenset(
+    {
+        "launch_credential",
+        "launch_frame_type",
+        "launch_input_io",
+        "launch_malformed",
+        "launch_missing",
+        "launch_oversized",
+        "launch_schema",
+        "launch_timeout",
+        "launch_version",
+        "legacy_secret_argument",
+        "readiness_generation",
+    }
+)
 
 
 class LaunchProtocolError(ValueError):
     """A safe, non-secret startup-protocol failure."""
+
+    def __init__(self, message: str, reason_code: str) -> None:
+        super().__init__(message)
+        self.reason_code = (
+            reason_code if reason_code in SAFE_LAUNCH_REASON_CODES else "launch_input_io"
+        )
 
 
 @dataclass(frozen=True)
@@ -37,15 +58,17 @@ def reject_legacy_secret_arguments(arguments: Sequence[str]) -> None:
             argument == option or argument.startswith(f"{option}=")
             for option in _LEGACY_SECRET_OPTIONS
         ):
-            raise LaunchProtocolError("Obsolete local-core launch arguments were rejected.")
+            raise LaunchProtocolError(
+                "Obsolete local-core launch arguments were rejected.", "legacy_secret_argument"
+            )
 
 
 def _read_one_frame(stream: BinaryIO) -> bytes:
     frame = stream.readline(MAX_LAUNCH_FRAME_BYTES + 2)
     if not frame:
-        raise LaunchProtocolError("Local-core launch data was not provided.")
+        raise LaunchProtocolError("Local-core launch data was not provided.", "launch_missing")
     if len(frame) > MAX_LAUNCH_FRAME_BYTES or not frame.endswith(b"\n"):
-        raise LaunchProtocolError("Local-core launch data exceeded its bound.")
+        raise LaunchProtocolError("Local-core launch data exceeded its bound.", "launch_oversized")
     return frame[:-1]
 
 
@@ -56,43 +79,55 @@ def read_launch_message(
 ) -> LaunchMessage:
     """Read exactly one secret launch frame from inherited stdin and fail closed."""
     source = stream if stream is not None else sys.stdin.buffer
-    result: queue.Queue[bytes | None] = queue.Queue(maxsize=1)
+    result: queue.Queue[bytes | LaunchProtocolError] = queue.Queue(maxsize=1)
 
     def read_worker() -> None:
         try:
             result.put(_read_one_frame(source))
+        except LaunchProtocolError as error:
+            result.put(error)
         except Exception:
-            result.put(None)
+            result.put(
+                LaunchProtocolError("Local-core launch input could not be read.", "launch_input_io")
+            )
 
     threading.Thread(target=read_worker, name="devpulse-launch-reader", daemon=True).start()
     try:
         frame = result.get(timeout=timeout_seconds)
     except queue.Empty as error:
-        raise LaunchProtocolError("Local-core launch data timed out.") from error
-    if frame is None:
-        raise LaunchProtocolError("Local-core launch data was invalid.")
+        raise LaunchProtocolError("Local-core launch data timed out.", "launch_timeout") from error
+    if isinstance(frame, LaunchProtocolError):
+        raise frame
     if not frame.startswith(LAUNCH_PREFIX):
-        raise LaunchProtocolError("Local-core launch data used an invalid frame type.")
+        raise LaunchProtocolError(
+            "Local-core launch data used an invalid frame type.", "launch_frame_type"
+        )
     try:
         payload = json.loads(frame[len(LAUNCH_PREFIX) :].decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise LaunchProtocolError("Local-core launch data was malformed.") from error
+        raise LaunchProtocolError(
+            "Local-core launch data was malformed.", "launch_malformed"
+        ) from error
     if type(payload) is not dict or set(payload) != {"protocol_version", "token"}:
-        raise LaunchProtocolError("Local-core launch data used an invalid schema.")
+        raise LaunchProtocolError("Local-core launch data used an invalid schema.", "launch_schema")
     if type(payload["protocol_version"]) is not int:
-        raise LaunchProtocolError("Local-core launch protocol version was invalid.")
+        raise LaunchProtocolError(
+            "Local-core launch protocol version was invalid.", "launch_version"
+        )
     if payload["protocol_version"] != STARTUP_PROTOCOL_VERSION:
-        raise LaunchProtocolError("Local-core launch protocol version was unsupported.")
+        raise LaunchProtocolError(
+            "Local-core launch protocol version was unsupported.", "launch_version"
+        )
     token = payload["token"]
     if type(token) is not str or _TOKEN_PATTERN.fullmatch(token) is None:
-        raise LaunchProtocolError("Local-core launch credential was invalid.")
+        raise LaunchProtocolError("Local-core launch credential was invalid.", "launch_credential")
     return LaunchMessage(protocol_version=payload["protocol_version"], token=token)
 
 
 def readiness_frame(*, port: int, process_id: int, instance_id: str) -> str:
     """Create the sole non-secret machine-readable readiness frame."""
     if not 1 <= port <= 65535 or process_id <= 0 or not re.fullmatch(r"[0-9a-f]{32}", instance_id):
-        raise LaunchProtocolError("Local-core readiness data was invalid.")
+        raise LaunchProtocolError("Local-core readiness data was invalid.", "readiness_generation")
     payload = {
         "instance_id": instance_id,
         "pid": process_id,

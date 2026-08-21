@@ -19,6 +19,7 @@ from devpulse_core.paths import AppPaths
 from devpulse_core.persistence import atomic_write_json
 from devpulse_core.providers import LocalDataProvider
 from devpulse_core.startup import (
+    SAFE_LAUNCH_REASON_CODES,
     LaunchProtocolError,
     read_launch_message,
     readiness_frame,
@@ -130,10 +131,9 @@ def stop_startup(reason_code: str) -> None:
     """Fail closed with one bounded, non-sensitive machine-readable reason."""
     allowed = {
         "access_credential",
-        "launch_protocol",
         "qa_failure_injection",
         "qa_path_boundary",
-    }
+    } | SAFE_LAUNCH_REASON_CODES
     safe_code = reason_code if reason_code in allowed else "startup_validation"
     print(f"DEVPULSE_STARTUP_ERROR {safe_code}", file=sys.stderr, flush=True)
     raise SystemExit(78)
@@ -144,8 +144,8 @@ def main() -> None:
         reject_legacy_secret_arguments(sys.argv[1:])
         args = parser().parse_args()
         launch = read_launch_message()
-    except LaunchProtocolError:
-        stop_startup("launch_protocol")
+    except LaunchProtocolError as error:
+        stop_startup(error.reason_code)
     try:
         paths = resolve_runtime_paths(args)
     except ValueError:
