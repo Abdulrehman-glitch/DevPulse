@@ -54,6 +54,32 @@ def validate_selected_path(
     return canonical
 
 
+def validate_descendant_path(candidate: Path, *, approved_root: Path) -> Path:
+    """Revalidate a queued scanner path against its approved canonical root."""
+
+    try:
+        root = approved_root.resolve(strict=True)
+        canonical = candidate.resolve(strict=True)
+    except (OSError, PermissionError) as exc:
+        raise UnsafeProjectPath("The scan boundary changed or became inaccessible.") from exc
+    if root != approved_root or _contains_reparse_component(root):
+        raise UnsafeProjectPath("The approved scan root changed after configuration.")
+    if not _same_or_within(canonical, root):
+        raise UnsafeProjectPath("Traversal outside the approved scan root was refused.")
+    relative = canonical.relative_to(root)
+    current = root
+    for part in relative.parts:
+        current /= part
+        try:
+            metadata = current.lstat()
+        except OSError as exc:
+            raise UnsafeProjectPath("The scan boundary changed or became inaccessible.") from exc
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        if current.is_symlink() or attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0):
+            raise UnsafeProjectPath("Traversal through a link or reparse point was refused.")
+    return canonical
+
+
 def _protected_roots(app_data: Path) -> set[Path]:
     roots = {app_data.resolve()}
     if os.name == "nt":

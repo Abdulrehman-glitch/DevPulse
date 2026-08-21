@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from itertools import islice
 from pathlib import Path
 
 from devpulse_core.models import HealthCheck
+from devpulse_core.services.path_safety import UnsafeProjectPath, validate_descendant_path
 
 
 class HealthScoreService:
@@ -85,12 +87,12 @@ class HealthScoreService:
         names: set[str] = set()
         directories: set[str] = set()
         try:
-            for item in root.iterdir():
+            for item in islice(root.iterdir(), 500):
                 names.add(item.name.casefold())
                 try:
-                    if item.is_dir():
+                    if validate_descendant_path(item, approved_root=root).is_dir():
                         directories.add(item.name.casefold())
-                except OSError:
+                except (OSError, UnsafeProjectPath):
                     pass
         except OSError:
             pass
@@ -123,10 +125,12 @@ class HealthScoreService:
             return True
         workflows = root / ".github" / "workflows"
         try:
-            return workflows.is_dir() and any(
-                item.suffix.casefold() in {".yml", ".yaml"} for item in workflows.iterdir()
+            canonical = validate_descendant_path(workflows, approved_root=root)
+            return canonical.is_dir() and any(
+                item.suffix.casefold() in {".yml", ".yaml"}
+                for item in islice(canonical.iterdir(), 500)
             )
-        except OSError:
+        except (OSError, UnsafeProjectPath):
             return False
 
     @staticmethod

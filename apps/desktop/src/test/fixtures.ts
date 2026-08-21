@@ -80,7 +80,7 @@ const activity: ActivityList = {
 };
 
 const settings: Settings = {
-  schema_version: 4,
+  schema_version: 5,
   onboarding_completed: true,
   projects: [
     {
@@ -97,7 +97,10 @@ const settings: Settings = {
   maximum_scan_depth: 3,
   maximum_repositories_per_root: 100,
   maximum_directories_per_scan: 5000,
+  maximum_entries_per_scan: 25000,
   scan_timeout_seconds: 20,
+  repository_scan_timeout_seconds: 15,
+  maximum_changed_paths: 1000,
   cache_duration_seconds: 30,
   refresh_interval_seconds: 300,
   maximum_commits_displayed: 5,
@@ -192,7 +195,7 @@ export function successfulProvider(): DataProvider {
       last_scan_status: "completed",
       registered_projects: 1,
       cache_status: "ready",
-      configuration_schema_version: 4,
+      configuration_schema_version: 5,
       data_boundary: "DevPulse application data",
       recent_error_codes: [],
       log_excerpt: ["INFO: Local core started"],
@@ -200,7 +203,7 @@ export function successfulProvider(): DataProvider {
     exportSafeDiagnostics: async () => '{"local_core_status":"connected"}\n',
     getSystemHistory: async () => ({ items: [] }),
     exportConfiguration: async () => ({
-      schema_version: 4,
+      schema_version: 5,
       exported_at: "2026-07-16T10:00:00Z",
       includes_notes: false,
       settings: {},

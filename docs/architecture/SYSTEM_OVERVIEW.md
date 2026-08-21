@@ -35,5 +35,4 @@ Build outputs, virtual environments, package caches, sidecar binaries, installer
 
 The application has no hosted SaaS implementation in this repository. Dependency installation and advisory checks contact their official registries or advisory sources during development; the product’s local project workflow does not require a DevPulse cloud service.
 
-Opening a project path is limited to a currently registered canonical directory. External links, updater behavior, plugins, telemetry submission, and remote administration are not implicit capabilities and require separate design and threat review.
-
+Opening a project path is limited to a currently registered canonical directory. External links, updater behavior, plugins, telemetry submission, and remote administration are not implicit capabilities and require separate design and threat review. The complete runtime network and diagnostic inventory is documented in [the privacy boundary](../security/PRIVACY.md).

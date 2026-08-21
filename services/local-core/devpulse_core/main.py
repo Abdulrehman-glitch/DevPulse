@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import multiprocessing
 import os
 import socket
@@ -17,6 +16,7 @@ from devpulse_core.api import create_app
 from devpulse_core.config import SettingsStore
 from devpulse_core.logging import configure_logging
 from devpulse_core.paths import AppPaths
+from devpulse_core.persistence import atomic_write_json
 from devpulse_core.providers import LocalDataProvider
 from devpulse_core.startup import (
     LaunchProtocolError,
@@ -81,9 +81,7 @@ def write_qa_path_report(paths: AppPaths) -> Path:
         "allWritablePathsUnderQaRoot": all(path.is_relative_to(root) for path in resolved.values()),
     }
     destination = root / "local-core-path-report.json"
-    temporary = destination.with_suffix(".tmp")
-    temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(destination)
+    atomic_write_json(destination, payload)
     return destination
 
 

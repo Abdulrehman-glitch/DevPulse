@@ -225,7 +225,10 @@ class SettingsResponse(BaseModel):
     maximum_scan_depth: int
     maximum_repositories_per_root: int
     maximum_directories_per_scan: int
+    maximum_entries_per_scan: int
     scan_timeout_seconds: int
+    repository_scan_timeout_seconds: int
+    maximum_changed_paths: int
     cache_duration_seconds: int
     refresh_interval_seconds: int
     maximum_commits_displayed: int
@@ -269,7 +272,10 @@ class SettingsResponse(BaseModel):
             maximum_scan_depth=settings.maximum_scan_depth,
             maximum_repositories_per_root=settings.maximum_repositories_per_root,
             maximum_directories_per_scan=settings.maximum_directories_per_scan,
+            maximum_entries_per_scan=settings.maximum_entries_per_scan,
             scan_timeout_seconds=settings.scan_timeout_seconds,
+            repository_scan_timeout_seconds=settings.repository_scan_timeout_seconds,
+            maximum_changed_paths=settings.maximum_changed_paths,
             cache_duration_seconds=settings.cache_duration_seconds,
             refresh_interval_seconds=settings.refresh_interval_seconds,
             maximum_commits_displayed=settings.maximum_commits_displayed,
@@ -301,7 +307,10 @@ class SettingsPatch(BaseModel):
     maximum_scan_depth: int | None = Field(default=None, ge=0, le=12)
     maximum_repositories_per_root: int | None = Field(default=None, ge=1, le=500)
     maximum_directories_per_scan: int | None = Field(default=None, ge=50, le=50_000)
+    maximum_entries_per_scan: int | None = Field(default=None, ge=100, le=250_000)
     scan_timeout_seconds: int | None = Field(default=None, ge=2, le=120)
+    repository_scan_timeout_seconds: int | None = Field(default=None, ge=2, le=60)
+    maximum_changed_paths: int | None = Field(default=None, ge=50, le=10_000)
     cache_duration_seconds: int | None = Field(default=None, ge=0, le=86_400)
     refresh_interval_seconds: int | None = Field(default=None, ge=0, le=86_400)
     maximum_commits_displayed: int | None = Field(default=None, ge=1, le=50)

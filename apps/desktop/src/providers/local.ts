@@ -35,6 +35,9 @@ export class HttpLocalDataProvider implements LocalDataProviderContract {
     if (!connection.address || !connection.token) {
       throw new Error("The local service connection is not ready.");
     }
+    if (!isValidLoopbackCoreAddress(connection.address)) {
+      throw new Error("The local service connection address is unsafe.");
+    }
   }
 
   getSystemSummary() {
@@ -212,6 +215,25 @@ export class HttpLocalDataProvider implements LocalDataProviderContract {
   }
 }
 
+export function isValidLoopbackCoreAddress(address: string): boolean {
+  try {
+    const parsed = new URL(address);
+    return (
+      parsed.protocol === "http:" &&
+      parsed.hostname === "127.0.0.1" &&
+      parsed.port !== "" &&
+      parsed.port !== "0" &&
+      parsed.pathname === "/" &&
+      parsed.search === "" &&
+      parsed.hash === "" &&
+      parsed.username === "" &&
+      parsed.password === ""
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function resolveCoreConnection(): Promise<CoreConnection> {
   if ("__TAURI_INTERNALS__" in window) {
     return invoke<CoreConnection>("core_connection");
@@ -227,7 +249,7 @@ export async function resolveCoreConnection(): Promise<CoreConnection> {
         qaMode: import.meta.env.VITE_DEVPULSE_QA_MODE === "1",
       }
     : {
-        status: "error",
+        status: "failed",
         message: "DevPulse must be opened from the desktop application.",
       };
 }

@@ -1,0 +1,19 @@
+{
+  "schema_version": 3,
+  "onboarding_completed": true,
+  "projects": [
+    {
+      "name": "Alpha project",
+      "path": "projects/alpha",
+      "favorite": true,
+      "tags": [
+        "alpha"
+      ],
+      "notes": "Preserved prerelease note",
+      "archived": false
+    }
+  ],
+  "scan_roots": [],
+  "appearance": "system",
+  "refresh_interval_seconds": 300
+}

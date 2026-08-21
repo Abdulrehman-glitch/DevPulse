@@ -261,7 +261,7 @@ describe("desktop application states", () => {
     expect(
       await screen.findByText("Redaction boundary active"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Schema 4")).toBeInTheDocument();
+    expect(screen.getByText("Schema 5")).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Copy Safe Diagnostics" }),
     );
@@ -278,7 +278,7 @@ describe("desktop application states", () => {
     render(
       <StartupScreen
         connection={{
-          status: "error",
+          status: "failed",
           qaMode: true,
           message:
             "The local service restart limit was reached. Restart DevPulse to try again.",

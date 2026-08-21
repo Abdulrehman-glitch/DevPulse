@@ -126,7 +126,7 @@ export function DesktopApp({
         checks.frontendConnected = summary.repositories_total > 0;
         checks.projectListLoaded = projects.total >= 10;
         checks.projectDetailsLoaded = Boolean(detail?.summary.name);
-        checks.settingsLoaded = currentSettings.schema_version === 4;
+        checks.settingsLoaded = currentSettings.schema_version === 5;
         checks.activityLoaded = activity.items.length > 0;
         checks.refreshCompleted = refreshed.total > 0;
         checks.resetCompleted = resetState.total === 0;

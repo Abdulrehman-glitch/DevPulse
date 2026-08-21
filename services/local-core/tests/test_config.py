@@ -1,8 +1,13 @@
 import json
 from pathlib import Path
 
-from devpulse_core.config import SettingsStore
+import pytest
+from devpulse_core import config as config_module
+from devpulse_core import persistence
+from devpulse_core.config import ConfigurationError, SettingsStore
 from devpulse_core.models import ProjectConfig, Settings
+
+FIXTURES = Path(__file__).parent / "fixtures" / "config"
 
 
 def test_first_run_configuration_is_created_outside_installation(
@@ -29,24 +34,24 @@ def test_settings_round_trip(settings_store: SettingsStore, tmp_path: Path) -> N
     assert loaded.appearance == "system"
 
 
-def test_terminal_configuration_is_migrated_in_memory(settings_store: SettingsStore) -> None:
+@pytest.mark.parametrize(
+    ("fixture_name", "source_version"),
+    [("v2-terminal.json", 2), ("v3-alpha.json", 3), ("v4-public-alpha1.json", 4)],
+)
+def test_supported_prior_configuration_fixtures_migrate_atomically(
+    settings_store: SettingsStore, fixture_name: str, source_version: int
+) -> None:
     settings_store.paths.ensure()
-    original = {
-        "projects": [{"name": "Legacy", "path": "../legacy", "commands": {"Tests": "pytest"}}],
-        "recursive_scan_roots": ["../projects"],
-        "max_scan_depth": 2,
-        "refresh_interval": 120,
-        "max_commits": 7,
-    }
+    original = json.loads((FIXTURES / fixture_name).read_text(encoding="utf-8"))
     settings_store.paths.settings.write_text(json.dumps(original), encoding="utf-8")
     settings = settings_store.load()
-    assert settings.maximum_scan_depth == 2
-    assert settings.scan_roots[0].recursive is True
+    assert settings.schema_version == 5
     migrated = json.loads(settings_store.paths.settings.read_text(encoding="utf-8"))
-    assert migrated["schema_version"] == 4
-    assert migrated["projects"][0]["path"] == "..\\legacy"
-    assert "commands" not in migrated["projects"][0]
-    assert settings_store.paths.data.joinpath("settings.pre-migration-v2.json").is_file()
+    assert migrated["schema_version"] == 5
+    assert settings_store.paths.data.joinpath(
+        f"settings.pre-migration-v{source_version}.json"
+    ).is_file()
+    assert settings_store.migrated_from == source_version
 
 
 def test_invalid_json_recovers_safe_defaults(settings_store: SettingsStore) -> None:
@@ -57,10 +62,21 @@ def test_invalid_json_recovers_safe_defaults(settings_store: SettingsStore) -> N
     assert list(settings_store.paths.data.glob("settings.corrupt-*.json"))
 
 
-def test_unknown_fields_recover_safe_defaults(settings_store: SettingsStore) -> None:
+def test_unknown_fields_are_preserved_and_block_migration(settings_store: SettingsStore) -> None:
     settings_store.paths.ensure()
-    settings_store.paths.settings.write_text('{"unexpected": true}', encoding="utf-8")
+    original = '{"schema_version": 4, "unexpected": true}'
+    settings_store.paths.settings.write_text(original, encoding="utf-8")
     assert settings_store.load() == Settings()
+    assert settings_store.paths.settings.read_text(encoding="utf-8") == original
+    assert settings_store.migration_blocked is True
+    assert list(settings_store.paths.data.glob("settings.unsupported-*.json"))
+    with pytest.raises(ConfigurationError, match="writes are blocked"):
+        settings_store.save(Settings(refresh_interval_seconds=120))
+    assert settings_store.paths.settings.read_text(encoding="utf-8") == original
+    fresh_store = SettingsStore(settings_store.paths)
+    with pytest.raises(ConfigurationError, match="unsupported fields"):
+        fresh_store.save(Settings(refresh_interval_seconds=180))
+    assert settings_store.paths.settings.read_text(encoding="utf-8") == original
 
 
 def test_last_known_good_backup_recovers_malformed_json(settings_store: SettingsStore) -> None:
@@ -105,12 +121,11 @@ def test_alpha3_configuration_migrates_once_and_preserves_beta_metadata(
             }
         ],
         "active_saved_view": "attention",
-        "future_field": "ignored at migration boundary",
     }
     settings_store.paths.settings.write_text(json.dumps(original), encoding="utf-8")
 
     migrated = settings_store.load()
-    assert migrated.schema_version == 4
+    assert migrated.schema_version == 5
     assert migrated.projects[0].favorite is True
     assert migrated.projects[0].tags == {"portfolio", "beta"}
     assert migrated.projects[0].notes == "Keep this local note"
@@ -118,7 +133,6 @@ def test_alpha3_configuration_migrates_once_and_preserves_beta_metadata(
     assert migrated.notification_preferences == {"warning": False}
     assert migrated.saved_views[0].id == "attention"
     assert migrated.active_saved_view == "attention"
-    assert "future_field" not in json.loads(settings_store.paths.settings.read_text())
     assert settings_store.paths.data.joinpath("settings.pre-migration-v3.json").is_file()
 
     second_store = SettingsStore(settings_store.paths)
@@ -129,7 +143,7 @@ def test_alpha3_configuration_migrates_once_and_preserves_beta_metadata(
 
 def test_newer_configuration_is_refused_without_overwrite(settings_store: SettingsStore) -> None:
     settings_store.paths.ensure()
-    newer = {"schema_version": 5, "projects": [{"name": "Newer", "path": "C:\\QA"}]}
+    newer = {"schema_version": 6, "projects": [{"name": "Newer", "path": "C:\\QA"}]}
     settings_store.paths.settings.write_text(json.dumps(newer), encoding="utf-8")
 
     loaded = settings_store.load()
@@ -138,3 +152,59 @@ def test_newer_configuration_is_refused_without_overwrite(settings_store: Settin
     assert settings_store.downgrade_blocked is True
     assert json.loads(settings_store.paths.settings.read_text()) == newer
     assert list(settings_store.paths.data.glob("settings.unsupported-*.json"))
+
+
+@pytest.mark.parametrize("invalid_version", [True, 0, -1, "5"])
+def test_invalid_schema_version_is_preserved_without_overwrite(
+    settings_store: SettingsStore, invalid_version: object
+) -> None:
+    settings_store.paths.ensure()
+    original = {"schema_version": invalid_version, "projects": []}
+    settings_store.paths.settings.write_text(json.dumps(original), encoding="utf-8")
+    assert settings_store.load() == Settings()
+    assert json.loads(settings_store.paths.settings.read_text(encoding="utf-8")) == original
+    assert settings_store.migration_blocked is True
+
+
+def test_interrupted_migration_keeps_validated_source_for_retry(
+    settings_store: SettingsStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings_store.paths.ensure()
+    original = json.loads((FIXTURES / "v4-public-alpha1.json").read_text(encoding="utf-8"))
+    settings_store.paths.settings.write_text(json.dumps(original), encoding="utf-8")
+    real_atomic_write = config_module.atomic_write_json
+
+    def fail_settings_commit(path: Path, payload: object) -> None:
+        if path == settings_store.paths.settings:
+            raise OSError("injected migration interruption")
+        real_atomic_write(path, payload)
+
+    monkeypatch.setattr(config_module, "atomic_write_json", fail_settings_commit)
+    loaded = settings_store.load()
+    assert loaded.schema_version == 5
+    assert json.loads(settings_store.paths.settings.read_text(encoding="utf-8")) == original
+    assert settings_store.migration_blocked is True
+    assert settings_store.paths.data.joinpath("settings.pre-migration-v4.json").is_file()
+
+
+def test_failed_atomic_save_preserves_previous_file_and_removes_temporary_file(
+    settings_store: SettingsStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings_store.save(Settings(refresh_interval_seconds=120))
+    before = settings_store.paths.settings.read_bytes()
+
+    def fail_replace(_source: object, _destination: object) -> None:
+        raise OSError("injected replace failure")
+
+    monkeypatch.setattr(persistence.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="injected replace failure"):
+        settings_store.save(Settings(refresh_interval_seconds=240))
+    assert settings_store.paths.settings.read_bytes() == before
+    assert not list(settings_store.paths.data.glob(".settings.json.*.tmp"))
+
+
+def test_stale_partial_file_is_never_adopted(settings_store: SettingsStore) -> None:
+    settings_store.save(Settings(refresh_interval_seconds=120))
+    partial = settings_store.paths.data / ".settings.json.interrupted.tmp"
+    partial.write_text('{"schema_version":5,"refresh_interval_seconds":240', encoding="utf-8")
+    assert settings_store.load().refresh_interval_seconds == 120

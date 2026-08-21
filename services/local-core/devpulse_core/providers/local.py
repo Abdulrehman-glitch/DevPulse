@@ -25,6 +25,7 @@ from devpulse_core.models import (
     SystemHistoryPoint,
     SystemSnapshot,
 )
+from devpulse_core.persistence import atomic_write_json, preserve_text_copy
 from devpulse_core.services import ProjectDiscovery, RepositoryScanner, SystemMonitor
 from devpulse_core.services.path_safety import validate_selected_path
 from devpulse_core.test_lab import generate_test_lab, qa_settings, reset_test_lab
@@ -55,6 +56,7 @@ class LocalDataProvider:
         self._refreshing = False
         self._lock = threading.RLock()
         self._history: deque[SystemHistoryPoint] = deque(maxlen=240)
+        self._cache_write_blocked = False
         self._load_cache()
         self._record("success", "core_started", "Local core started")
         if self.store.last_error:
@@ -67,7 +69,7 @@ class LocalDataProvider:
             self._record(
                 "success",
                 "configuration_migrated",
-                f"Configuration migrated from schema {self.store.migrated_from} to schema 4.",
+                f"Configuration migrated from schema {self.store.migrated_from} to schema 5.",
             )
         if self.qa_mode:
             self._record("info", "qa_mode_started", "QA mode started with artificial data")
@@ -144,7 +146,12 @@ class LocalDataProvider:
             self._refreshing = True
         self._record("info", "scan_started", "Repository scan started")
         try:
-            projects = ProjectDiscovery(self._settings).discover()
+            discovery = ProjectDiscovery(
+                self._settings,
+                app_data=self.store.paths.data,
+                allowed_app_data_subtree=self.store.paths.test_lab if self.qa_mode else None,
+            )
+            projects = discovery.discover()
             repositories = self._scanner.scan_all(
                 projects,
                 force=force,
@@ -219,6 +226,15 @@ class LocalDataProvider:
         return self._settings.model_copy(deep=True)
 
     def update_settings(self, settings: Settings) -> Settings:
+        validated_roots: list[ScanRootConfig] = []
+        for root in settings.scan_roots:
+            canonical = validate_selected_path(
+                root.path,
+                app_data=self.store.paths.data,
+                allowed_app_data_subtree=self.store.paths.test_lab if self.qa_mode else None,
+            )
+            validated_roots.append(root.model_copy(update={"path": canonical}))
+        settings = settings.model_copy(update={"scan_roots": validated_roots})
         self._settings = self.store.save(settings)
         self._scanner = self._make_scanner()
         self._record("success", "configuration_updated", "Configuration updated")
@@ -240,7 +256,11 @@ class LocalDataProvider:
                 "scan_roots": [ScanRootConfig(path=canonical, recursive=True)],
             }
         )
-        projects = ProjectDiscovery(preview_settings).discover()
+        projects = ProjectDiscovery(
+            preview_settings,
+            app_data=self.store.paths.data,
+            allowed_app_data_subtree=self.store.paths.test_lab if self.qa_mode else None,
+        ).discover()
         return self._scanner.scan_all(
             projects,
             force=True,
@@ -392,7 +412,7 @@ class LocalDataProvider:
                 project["notes"] = item.notes
             projects.append(project)
         return {
-            "schema_version": 4,
+            "schema_version": 5,
             "exported_at": datetime.now(UTC).isoformat(),
             "includes_notes": include_notes,
             "settings": settings_payload,
@@ -432,7 +452,10 @@ class LocalDataProvider:
             "maximum_scan_depth",
             "maximum_repositories_per_root",
             "maximum_directories_per_scan",
+            "maximum_entries_per_scan",
             "scan_timeout_seconds",
+            "repository_scan_timeout_seconds",
+            "maximum_changed_paths",
             "ignored_directories",
             "cache_duration_seconds",
             "refresh_interval_seconds",
@@ -453,9 +476,15 @@ class LocalDataProvider:
             "saved_views",
             "active_saved_view",
         }
+        unknown_settings = set(settings_payload) - allowed - {"schema_version"}
+        if unknown_settings:
+            raise ValueError(
+                "Configuration contains unsupported settings: "
+                + ", ".join(sorted(unknown_settings))
+            )
         current.update({key: value for key, value in settings_payload.items() if key in allowed})
         current["projects"] = incoming
-        current["schema_version"] = 4
+        current["schema_version"] = 5
         settings = Settings.model_validate(current)
         result = self.update_settings(settings)
         self._record("success", "configuration_imported", "Configuration imported")
@@ -468,9 +497,7 @@ class LocalDataProvider:
         destination = self.store.paths.backups / f"{backup_id}.json"
         payload = self.export_configuration(include_notes=True)
         payload["backup_source"] = source
-        temporary = destination.with_suffix(".tmp")
-        temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        temporary.replace(destination)
+        atomic_write_json(destination, payload)
         return {
             "id": backup_id,
             "created_at": datetime.now(UTC),
@@ -513,7 +540,7 @@ class LocalDataProvider:
         path.unlink(missing_ok=True)
 
     def _parse_import(self, payload: dict[str, object]) -> list[ProjectConfig]:
-        if payload.get("schema_version") not in {3, 4}:
+        if payload.get("schema_version") not in {3, 4, 5}:
             raise ValueError("This configuration export is not a supported DevPulse schema.")
         projects = payload.get("projects")
         if not isinstance(projects, list) or len(projects) > 500:
@@ -621,6 +648,8 @@ class LocalDataProvider:
             self._settings.maximum_commits_displayed,
             self.store.paths.data,
             self.store.paths.test_lab if self.qa_mode else None,
+            self._settings.repository_scan_timeout_seconds,
+            self._settings.maximum_changed_paths,
         )
 
     def _record(
@@ -650,25 +679,43 @@ class LocalDataProvider:
         return self.store.paths.cache / "repositories-v1.json"
 
     def _write_cache(self) -> None:
+        if self._cache_write_blocked:
+            return
         self.store.paths.ensure()
         payload = {
             "version": 1,
             "last_refresh": self._last_refresh.isoformat() if self._last_refresh else None,
             "repositories": [item.model_dump(mode="json") for item in self._repositories],
         }
-        temporary = self._cache_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        temporary.replace(self._cache_path)
+        atomic_write_json(self._cache_path, payload)
 
     def _load_cache(self) -> None:
         try:
             raw = json.loads(self._cache_path.read_text(encoding="utf-8"))
-            if raw.get("version") != 1:
+            version = raw.get("version")
+            if isinstance(version, int) and version > 1:
+                self._cache_write_blocked = True
+                self._preserve_cache("unsupported")
                 return
+            if version != 1:
+                raise ValueError("unsupported cache schema")
             repositories = [RepositoryInfo.model_validate(item) for item in raw["repositories"]]
             refreshed = raw.get("last_refresh")
             with self._lock:
                 self._repositories = repositories
                 self._last_refresh = datetime.fromisoformat(refreshed) if refreshed else None
         except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
+            self._preserve_cache("corrupt")
             return
+
+    def _preserve_cache(self, disposition: str) -> None:
+        if not self._cache_path.exists():
+            return
+        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
+        destination = self._cache_path.with_name(
+            f"{self._cache_path.stem}.{disposition}-{stamp}.json"
+        )
+        try:
+            preserve_text_copy(self._cache_path, destination)
+        except OSError:
+            logger.warning("Repository cache preservation failed: cache_preserve_error")
