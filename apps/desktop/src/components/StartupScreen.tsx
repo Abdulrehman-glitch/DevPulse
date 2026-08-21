@@ -8,7 +8,8 @@ export function StartupScreen({
   connection: CoreConnection;
   onRetry: () => void;
 }) {
-  const failed = connection.status === "error";
+  const failed = connection.status === "failed";
+  const recovering = connection.status === "recovering";
   return (
     <main className="startup-shell" aria-live="polite">
       <section className="startup-card">
@@ -21,13 +22,18 @@ export function StartupScreen({
         <h1>
           {failed
             ? "Local service needs attention"
-            : "Preparing your workspace"}
+            : recovering
+              ? "Recovering the local service"
+              : "Preparing your workspace"}
         </h1>
         <p className="startup-copy">
           {failed
             ? (connection.message ??
               "DevPulse could not start its internal service.")
-            : "Starting the private local service and collecting current system information."}
+            : recovering
+              ? (connection.message ??
+                "DevPulse is making a bounded automatic recovery attempt.")
+              : "Starting the private local service and collecting current system information."}
         </p>
         {connection.qaMode && (
           <p className="qa-startup-note">

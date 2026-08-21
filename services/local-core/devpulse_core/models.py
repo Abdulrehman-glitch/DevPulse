@@ -88,14 +88,17 @@ class Settings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[4] = 4
+    schema_version: Literal[5] = 5
     onboarding_completed: bool = False
     projects: list[ProjectConfig] = Field(default_factory=list)
     scan_roots: list[ScanRootConfig] = Field(default_factory=list)
     maximum_scan_depth: int = Field(default=3, ge=0, le=12)
     maximum_repositories_per_root: int = Field(default=100, ge=1, le=500)
     maximum_directories_per_scan: int = Field(default=5_000, ge=50, le=50_000)
+    maximum_entries_per_scan: int = Field(default=25_000, ge=100, le=250_000)
     scan_timeout_seconds: int = Field(default=20, ge=2, le=120)
+    repository_scan_timeout_seconds: int = Field(default=15, ge=2, le=60)
+    maximum_changed_paths: int = Field(default=1_000, ge=50, le=10_000)
     ignored_directories: set[str] = Field(default_factory=lambda: set(DEFAULT_IGNORED_DIRECTORIES))
     cache_duration_seconds: int = Field(default=30, ge=0, le=86_400)
     refresh_interval_seconds: int = Field(default=300, ge=0, le=86_400)

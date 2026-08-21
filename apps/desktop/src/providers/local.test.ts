@@ -1,11 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   HttpLocalDataProvider,
   isPathInsideQaRoot,
+  isValidLoopbackCoreAddress,
   qaPathsAreIsolated,
 } from "./local";
 
 describe("HttpLocalDataProvider", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("surfaces an authenticated API failure without exposing the token", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(
@@ -63,5 +66,27 @@ describe("HttpLocalDataProvider", () => {
     ).toBe(false);
     expect(isPathInsideQaRoot(`${root}2\\escape`, root)).toBe(false);
     expect(isPathInsideQaRoot(`${root}\\folder\\..\\escape`, root)).toBe(false);
+  });
+
+  it("refuses unexpected outbound network addresses before fetch", () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    for (const address of [
+      "https://telemetry.example.invalid",
+      "http://localhost:49152",
+      "http://127.0.0.1:49152/other",
+      "http://user@127.0.0.1:49152",
+      "not-a-url",
+    ]) {
+      expect(isValidLoopbackCoreAddress(address)).toBe(false);
+      expect(
+        () =>
+          new HttpLocalDataProvider({
+            status: "ready",
+            address,
+            token: "fixture-secret",
+          }),
+      ).toThrow("unsafe");
+    }
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

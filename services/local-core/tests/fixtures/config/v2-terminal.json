@@ -1,0 +1,17 @@
+{
+  "projects": [
+    {
+      "name": "Legacy terminal project",
+      "path": "projects/legacy",
+      "commands": {
+        "Tests": "pytest"
+      }
+    }
+  ],
+  "recursive_scan_roots": [
+    "projects"
+  ],
+  "max_scan_depth": 2,
+  "refresh_interval": 120,
+  "max_commits": 7
+}

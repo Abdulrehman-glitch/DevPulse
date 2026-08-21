@@ -211,7 +211,7 @@ def test_alpha3_project_metadata_configuration_portability_and_backups(
         assert stored["tags"] == ["focus"]
         assert stored["archived"] is True
         exported = client.get("/api/v1/configuration/export", headers=headers).json()
-        assert exported["schema_version"] == 4
+        assert exported["schema_version"] == 5
         assert "notes" not in exported["projects"][0]
         export_with_notes = client.get(
             "/api/v1/configuration/export?include_notes=true", headers=headers

@@ -24,7 +24,7 @@ export function useCoreConnection() {
       return next;
     } catch (error) {
       const failed: CoreConnection = {
-        status: "error",
+        status: "failed",
         message:
           error instanceof Error
             ? error.message
@@ -40,7 +40,8 @@ export function useCoreConnection() {
     let timeout: number | undefined;
     const poll = async () => {
       const result = await check();
-      if (result.status === "starting") timeout = window.setTimeout(poll, 250);
+      if (result.status === "starting" || result.status === "recovering")
+        timeout = window.setTimeout(poll, 250);
       else if (result.status === "ready")
         timeout = window.setTimeout(poll, 1_500);
     };
@@ -57,7 +58,7 @@ export function useCoreConnection() {
       setConnection(await restartCore());
     } catch (error) {
       setConnection({
-        status: "error",
+        status: "failed",
         message:
           error instanceof Error
             ? error.message

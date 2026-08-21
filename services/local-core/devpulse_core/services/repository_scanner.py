@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import logging
 import os
+import stat
+import subprocess
 import threading
 import time
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
+from itertools import islice
 from pathlib import Path
 from typing import ClassVar
 
@@ -54,6 +57,8 @@ class RepositoryScanner:
         maximum_commits: int = 5,
         app_data: Path | None = None,
         allowed_app_data_subtree: Path | None = None,
+        repository_scan_timeout_seconds: int = 15,
+        maximum_changed_paths: int = 1_000,
     ) -> None:
         self.cache_duration_seconds = cache_duration_seconds
         self.maximum_commits = maximum_commits
@@ -61,6 +66,8 @@ class RepositoryScanner:
         self.health_service = HealthScoreService()
         self.app_data = app_data
         self.allowed_app_data_subtree = allowed_app_data_subtree
+        self.repository_scan_timeout_seconds = repository_scan_timeout_seconds
+        self.maximum_changed_paths = maximum_changed_paths
         self._cache: dict[str, tuple[float, RepositoryInfo]] = {}
         self._cache_lock = threading.Lock()
 
@@ -124,8 +131,10 @@ class RepositoryScanner:
                     return self._error_info(project, now, "unsupported_path", str(exc))
         try:
             exists = path.exists() and path.is_dir()
-        except OSError as exc:
-            return self._error_info(project, now, "access_error", f"Repository access error: {exc}")
+        except OSError:
+            return self._error_info(
+                project, now, "access_error", "Repository path could not be accessed."
+            )
         if not exists:
             return RepositoryInfo(
                 project=project,
@@ -135,6 +144,17 @@ class RepositoryScanner:
                 warnings=["Project directory does not exist"],
                 error="Project directory does not exist",
                 last_scan_timestamp=now,
+            )
+        try:
+            self._validate_git_metadata_boundary(path)
+        except UnsafeProjectPath as exc:
+            return self._error_info(project, now, "unsupported_path", str(exc))
+        except OSError:
+            return self._error_info(
+                project,
+                now,
+                "unsupported_path",
+                "Git metadata is inaccessible or invalid.",
             )
         try:
             repo = Repo(path, search_parent_directories=False)
@@ -149,13 +169,22 @@ class RepositoryScanner:
                 warnings=["Path is not a Git repository"],
                 last_scan_timestamp=now,
             )
-        except (OSError, GitCommandError) as exc:
-            return self._error_info(project, now, "access_error", f"Repository access error: {exc}")
+        except (OSError, GitCommandError):
+            return self._error_info(
+                project, now, "access_error", "Repository metadata could not be accessed."
+            )
 
         try:
             branch, detached = self._branch_name(repo)
-            porcelain = repo.git.status("--porcelain=v1", "--untracked-files=all")
-            modified, staged, untracked = self.parse_porcelain_status(porcelain)
+            status_lines, status_truncated = self._run_git_bounded_lines(
+                repo,
+                self.maximum_changed_paths,
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=normal",
+                "--ignore-submodules=all",
+            )
+            modified, staged, untracked = self.parse_porcelain_status("\n".join(status_lines))
             changed = sorted(set(modified) | set(staged) | set(untracked))
             commits = self._commits(repo)
             last = commits[0] if commits else None
@@ -183,6 +212,8 @@ class RepositoryScanner:
                 warnings.append("Current branch has no upstream tracking branch")
             if changed:
                 warnings.append("Repository has uncommitted changes")
+            if status_truncated:
+                warnings.append("Changed-path display limit reached")
             root_files = self._root_files(path)
             if not any(name.startswith("readme") for name in root_files):
                 warnings.append("README file is missing")
@@ -245,8 +276,8 @@ class RepositoryScanner:
             )
             repo.close()
             return result
-        except (OSError, ValueError, TypeError, GitCommandError) as exc:
-            logger.warning("Could not inspect repository at %s: %s", path, exc)
+        except (OSError, ValueError, TypeError, GitCommandError, subprocess.SubprocessError) as exc:
+            logger.warning("Repository inspection failed: %s", type(exc).__name__)
             repo.close()
             return RepositoryInfo(
                 project=project,
@@ -254,7 +285,7 @@ class RepositoryScanner:
                 is_git_repository=True,
                 status="access_error",
                 warnings=["Repository inspection failed"],
-                error=str(exc),
+                error="Repository inspection failed (access_error).",
                 last_scan_timestamp=now,
             )
 
@@ -300,8 +331,7 @@ class RepositoryScanner:
             for commit in repo.iter_commits(max_count=self.maximum_commits)
         ]
 
-    @staticmethod
-    def _ahead_behind(repo: Repo) -> tuple[int, int]:
+    def _ahead_behind(self, repo: Repo) -> tuple[int, int]:
         if not repo.head.is_valid() or repo.head.is_detached:
             return 0, 0
         tracking = repo.active_branch.tracking_branch()
@@ -309,11 +339,206 @@ class RepositoryScanner:
             return 0, 0
         behind, ahead = (
             int(value)
-            for value in repo.git.rev_list(
-                "--left-right", "--count", f"{tracking.name}...HEAD"
+            for value in self._run_git(
+                repo,
+                "rev-list",
+                "--left-right",
+                "--count",
+                f"{tracking.name}...HEAD",
             ).split()
         )
         return ahead, behind
+
+    def _run_git(self, repo: Repo, *arguments: str) -> str:
+        """Run a bounded, read-only Git command and terminate only that owned child on timeout."""
+        working_tree = repo.working_tree_dir
+        if working_tree is None:
+            raise ValueError("Repository has no working tree")
+        completed = subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.untrackedCache=false",
+                *arguments,
+            ],
+            cwd=working_tree,
+            capture_output=True,
+            check=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            encoding="utf-8",
+            errors="replace",
+            env=self._git_environment(),
+            timeout=self.repository_scan_timeout_seconds,
+        )
+        return completed.stdout
+
+    def _run_git_bounded_lines(
+        self, repo: Repo, maximum_lines: int, *arguments: str
+    ) -> tuple[list[str], bool]:
+        """Capture at most a bounded number of status lines from one owned process."""
+        working_tree = repo.working_tree_dir
+        if working_tree is None:
+            raise ValueError("Repository has no working tree")
+        process = subprocess.Popen(
+            [
+                "git",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.untrackedCache=false",
+                *arguments,
+            ],
+            cwd=working_tree,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            encoding="utf-8",
+            errors="replace",
+            env=self._git_environment(),
+        )
+        timed_out = threading.Event()
+
+        def terminate_on_timeout() -> None:
+            timed_out.set()
+            with suppress(OSError):
+                process.kill()
+
+        timer = threading.Timer(self.repository_scan_timeout_seconds, terminate_on_timeout)
+        timer.daemon = True
+        timer.start()
+        lines: list[str] = []
+        truncated = False
+        try:
+            if process.stdout is None:
+                raise OSError("Git status did not provide output")
+            for line in process.stdout:
+                if len(lines) >= maximum_lines:
+                    truncated = True
+                    with suppress(OSError):
+                        process.kill()
+                    break
+                lines.append(line.rstrip("\r\n")[:4_096])
+            return_code = process.wait()
+        finally:
+            timer.cancel()
+            if process.stdout is not None:
+                process.stdout.close()
+        if timed_out.is_set():
+            raise subprocess.TimeoutExpired("git", self.repository_scan_timeout_seconds)
+        if return_code != 0 and not truncated:
+            raise subprocess.CalledProcessError(return_code, ["git", *arguments])
+        return lines, truncated
+
+    @staticmethod
+    def _git_environment() -> dict[str, str]:
+        return {
+            **os.environ,
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+        }
+
+    @staticmethod
+    def _validate_git_metadata_boundary(path: Path) -> None:
+        """Reject Git metadata indirection, alternates, or reparses beyond the project root."""
+        marker = path / ".git"
+        try:
+            metadata = marker.lstat()
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise UnsafeProjectPath("Git metadata is inaccessible.") from exc
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        if marker.is_symlink() or attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0):
+            raise UnsafeProjectPath("Linked Git metadata is outside the supported boundary.")
+
+        if marker.is_dir():
+            git_directory = marker.resolve(strict=True)
+        elif marker.is_file():
+            if marker.stat().st_size > 1_024:
+                raise UnsafeProjectPath("Git metadata indirection is invalid.")
+            content = marker.read_text(encoding="utf-8", errors="replace").strip()
+            prefix = "gitdir:"
+            if not content.casefold().startswith(prefix):
+                raise UnsafeProjectPath("Git metadata indirection is invalid.")
+            target = Path(content[len(prefix) :].strip())
+            git_directory = (target if target.is_absolute() else marker.parent / target).resolve(
+                strict=True
+            )
+        else:
+            raise UnsafeProjectPath("Git metadata is not a supported file or directory.")
+
+        try:
+            git_directory.relative_to(path.resolve(strict=True))
+        except ValueError as exc:
+            raise UnsafeProjectPath("Git metadata leaves the approved project boundary.") from exc
+
+        for metadata_path in (
+            git_directory / "objects",
+            git_directory / "refs",
+            git_directory / "config",
+            git_directory / "HEAD",
+            git_directory / "index",
+            git_directory / "packed-refs",
+        ):
+            if not metadata_path.exists():
+                continue
+            item = metadata_path.lstat()
+            item_attributes = getattr(item, "st_file_attributes", 0)
+            if metadata_path.is_symlink() or item_attributes & getattr(
+                stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0
+            ):
+                raise UnsafeProjectPath("Linked Git metadata is outside the supported boundary.")
+            try:
+                metadata_path.resolve(strict=True).relative_to(path.resolve(strict=True))
+            except ValueError as exc:
+                raise UnsafeProjectPath(
+                    "Git metadata leaves the approved project boundary."
+                ) from exc
+
+        repository_config = git_directory / "config"
+        if repository_config.is_file():
+            if repository_config.stat().st_size > 262_144:
+                raise UnsafeProjectPath("Git repository configuration is too large.")
+            configuration = repository_config.read_text(
+                encoding="utf-8", errors="replace"
+            ).casefold()
+            if "[include" in configuration:
+                raise UnsafeProjectPath("External Git configuration includes are not supported.")
+
+        common_directory = git_directory / "commondir"
+        if common_directory.is_file():
+            if common_directory.stat().st_size > 1_024:
+                raise UnsafeProjectPath("Git common metadata indirection is invalid.")
+            target = Path(common_directory.read_text(encoding="utf-8", errors="replace").strip())
+            resolved = (target if target.is_absolute() else git_directory / target).resolve(
+                strict=True
+            )
+            try:
+                resolved.relative_to(path.resolve(strict=True))
+            except ValueError as exc:
+                raise UnsafeProjectPath(
+                    "Git common metadata leaves the approved boundary."
+                ) from exc
+
+        alternates = git_directory / "objects" / "info" / "alternates"
+        if alternates.is_file():
+            if alternates.stat().st_size > 65_536:
+                raise UnsafeProjectPath("Git object alternates are invalid.")
+            for value in alternates.read_text(encoding="utf-8", errors="replace").splitlines():
+                target = Path(value.strip())
+                resolved = (target if target.is_absolute() else alternates.parent / target).resolve(
+                    strict=True
+                )
+                try:
+                    resolved.relative_to(path.resolve(strict=True))
+                except ValueError as exc:
+                    raise UnsafeProjectPath(
+                        "Git object storage leaves the approved boundary."
+                    ) from exc
 
     @staticmethod
     def _status(
@@ -332,8 +557,8 @@ class RepositoryScanner:
         try:
             return sorted(
                 item.name
-                for item in path.iterdir()
-                if item.is_file() and item.name.casefold() in cls.IMPORTANT_NAMES
+                for item in islice(path.iterdir(), 500)
+                if cls._plain_is_file(item) and item.name.casefold() in cls.IMPORTANT_NAMES
             )
         except OSError:
             return []
@@ -342,7 +567,9 @@ class RepositoryScanner:
     def _root_files(cls, path: Path) -> list[str]:
         try:
             return sorted(
-                item.name for item in path.iterdir() if item.is_file() and len(item.name) <= 240
+                item.name
+                for item in islice(path.iterdir(), 500)
+                if cls._plain_is_file(item) and len(item.name) <= 240
             )[:250]
         except OSError:
             return []
@@ -365,14 +592,17 @@ class RepositoryScanner:
         lowered = {name.casefold() for name in root_files}
         if lowered & {"pnpm-workspace.yaml", "lerna.json", "nx.json", "turbo.json"}:
             return True
-        return any((path / item).is_dir() for item in ("apps", "packages", "services"))
+        return any(
+            RepositoryScanner._plain_is_directory(path / item)
+            for item in ("apps", "packages", "services")
+        )
 
     @staticmethod
     def _application_directories(path: Path) -> list[str]:
         result: list[str] = []
         try:
-            for item in path.iterdir():
-                if item.is_dir() and item.name.casefold() in {
+            for item in islice(path.iterdir(), 500):
+                if RepositoryScanner._plain_is_directory(item) and item.name.casefold() in {
                     "app",
                     "apps",
                     "src",
@@ -385,6 +615,25 @@ class RepositoryScanner:
         except OSError:
             return []
         return sorted(result)
+
+    @staticmethod
+    def _plain_is_file(path: Path) -> bool:
+        return RepositoryScanner._plain_path_kind(path, directory=False)
+
+    @staticmethod
+    def _plain_is_directory(path: Path) -> bool:
+        return RepositoryScanner._plain_path_kind(path, directory=True)
+
+    @staticmethod
+    def _plain_path_kind(path: Path, *, directory: bool) -> bool:
+        try:
+            metadata = path.lstat()
+            attributes = getattr(metadata, "st_file_attributes", 0)
+            if path.is_symlink() or attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0):
+                return False
+            return path.is_dir() if directory else path.is_file()
+        except OSError:
+            return False
 
     @staticmethod
     def _warning_details(

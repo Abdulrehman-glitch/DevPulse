@@ -1,0 +1,27 @@
+{
+  "schema_version": 4,
+  "onboarding_completed": true,
+  "projects": [
+    {
+      "name": "Public alpha project",
+      "path": "projects/public-alpha",
+      "favorite": false,
+      "tags": [],
+      "notes": "",
+      "archived": false
+    }
+  ],
+  "scan_roots": [],
+  "maximum_scan_depth": 3,
+  "maximum_repositories_per_root": 100,
+  "maximum_directories_per_scan": 5000,
+  "scan_timeout_seconds": 20,
+  "ignored_directories": [
+    "node_modules",
+    "target"
+  ],
+  "cache_duration_seconds": 30,
+  "refresh_interval_seconds": 300,
+  "maximum_commits_displayed": 5,
+  "appearance": "system"
+}

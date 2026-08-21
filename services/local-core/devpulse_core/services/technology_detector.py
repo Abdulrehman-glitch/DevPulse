@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+from itertools import islice
 from pathlib import Path
 from typing import ClassVar
+
+from devpulse_core.services.path_safety import UnsafeProjectPath, validate_descendant_path
 
 
 class TechnologyDetector:
@@ -30,7 +33,7 @@ class TechnologyDetector:
 
     def detect(self, root: Path) -> list[str]:
         try:
-            names = {item.name.casefold(): item for item in root.iterdir()}
+            names = {item.name.casefold(): item for item in islice(root.iterdir(), 500)}
         except OSError:
             return []
         found: set[str] = set()
@@ -48,20 +51,19 @@ class TechnologyDetector:
             found.add("Rust")
         tauri_directory = root / "src-tauri"
         tauri_config = tauri_directory / "tauri.conf.json"
-        if "tauri.conf.json" in names or tauri_config.is_file():
+        if "tauri.conf.json" in names or self._safe_is_file(tauri_config, root):
             found.add("Tauri")
         if {"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle"} & names.keys():
             found.add("Java")
         if "build.gradle.kts" in names or "settings.gradle.kts" in names:
             found.add("Kotlin")
-        if (
-            "androidmanifest.xml" in names
-            or (root / "app" / "src" / "main" / "AndroidManifest.xml").exists()
+        if "androidmanifest.xml" in names or self._safe_is_file(
+            root / "app" / "src" / "main" / "AndroidManifest.xml", root
         ):
             found.add("Android")
         if "package.json" in names:
             found.add("Node.js")
-            package = self._read_json(names["package.json"])
+            package = self._read_json(names["package.json"], root)
             dependencies = {
                 str(key).casefold()
                 for section in ("dependencies", "devDependencies")
@@ -83,17 +85,14 @@ class TechnologyDetector:
             found.add("Docker")
         if {"azure-pipelines.yml", "azure-pipelines.yaml", "azure.yaml"} & names.keys():
             found.add("Azure deployment")
-        workflows = root / ".github" / "workflows"
-        try:
-            if workflows.is_dir() and any(
-                item.suffix.casefold() in {".yml", ".yaml"} for item in workflows.iterdir()
-            ):
-                found.add("GitHub Actions")
-        except OSError:
-            pass
+        if any(
+            item.suffix.casefold() in {".yml", ".yaml"}
+            for item in self._safe_directory_entries(root / ".github" / "workflows", root)
+        ):
+            found.add("GitHub Actions")
         # Never inspect .env files. Only bounded public dependency manifests are read.
         text = "\n".join(
-            self._read_text(names[name])
+            self._read_text(names[name], root)
             for name in ("pyproject.toml", "requirements.txt", "setup.cfg")
             if name in names
         ).casefold()
@@ -145,14 +144,11 @@ class TechnologyDetector:
 
     def ci_provider(self, root: Path) -> str | None:
         names = self._root_names(root)
-        workflows = root / ".github" / "workflows"
-        try:
-            if workflows.is_dir() and any(
-                item.suffix.casefold() in {".yml", ".yaml"} for item in workflows.iterdir()
-            ):
-                return "GitHub Actions"
-        except OSError:
-            pass
+        if any(
+            item.suffix.casefold() in {".yml", ".yaml"}
+            for item in self._safe_directory_entries(root / ".github" / "workflows", root)
+        ):
+            return "GitHub Actions"
         if names & {"azure-pipelines.yml", "azure-pipelines.yaml"}:
             return "Azure Pipelines"
         if ".gitlab-ci.yml" in names:
@@ -179,7 +175,7 @@ class TechnologyDetector:
     @staticmethod
     def _root_names(root: Path) -> set[str]:
         try:
-            return {item.name.casefold() for item in root.iterdir()}
+            return {item.name.casefold() for item in islice(root.iterdir(), 500)}
         except OSError:
             return set()
 
@@ -211,16 +207,34 @@ class TechnologyDetector:
             if package in dependencies:
                 found.add(technology)
 
-    def _read_text(self, path: Path) -> str:
+    def _read_text(self, path: Path, root: Path) -> str:
         try:
-            if path.stat().st_size > self.MAX_CONFIG_BYTES:
+            canonical = validate_descendant_path(path, approved_root=root)
+            if not canonical.is_file() or canonical.stat().st_size > self.MAX_CONFIG_BYTES:
                 return ""
-            return path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+            return canonical.read_text(encoding="utf-8", errors="replace")
+        except (OSError, UnsafeProjectPath):
             return ""
 
-    def _read_json(self, path: Path) -> object:
+    def _read_json(self, path: Path, root: Path) -> object:
         try:
-            return json.loads(self._read_text(path))
+            return json.loads(self._read_text(path, root))
         except (json.JSONDecodeError, TypeError):
             return {}
+
+    @staticmethod
+    def _safe_is_file(path: Path, root: Path) -> bool:
+        try:
+            return validate_descendant_path(path, approved_root=root).is_file()
+        except (OSError, UnsafeProjectPath):
+            return False
+
+    @staticmethod
+    def _safe_directory_entries(path: Path, root: Path) -> list[Path]:
+        try:
+            canonical = validate_descendant_path(path, approved_root=root)
+            if not canonical.is_dir():
+                return []
+            return list(islice(canonical.iterdir(), 500))
+        except (OSError, UnsafeProjectPath):
+            return []

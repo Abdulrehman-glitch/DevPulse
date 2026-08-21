@@ -22,11 +22,11 @@ Loopback binding alone is insufficient because unrelated local web pages may att
 
 ## Filesystem and project data
 
-Project scanning is intended to be read-only. Configured project roots are validated, dangerous traversal is rejected, and QA mode requires one explicit canonical sandbox root. DevPulse does not promise protection from files that change concurrently, hostile filesystem drivers, or a same-user attacker who replaces paths after validation. Scanner containment and exclusions remain an area for continued hardening.
+Project scanning is read-only. Production has no default scan root. Configured roots and every queued descendant are re-canonicalised, symbolic links and Windows junctions are rejected, and depth, directories, entries, repositories, Git command duration, and displayed changed paths are bounded. Permission failures and concurrent changes return partial, non-sensitive results. QA mode requires one explicit canonical sandbox root. A same-user attacker, administrator, kernel component, or hostile filesystem driver remains outside this boundary.
 
 ## Process lifecycle and diagnostics
 
-The parent tracks the exact child process. Packaged Windows builds place it in a kill-on-close Job Object; development builds retain and terminate the exact child handle. Startup and shutdown are bounded. Raw startup pipe contents are never written to diagnostics. Local logs apply credential and path redaction, but users should still review diagnostic exports before sharing them.
+The parent tracks the exact child process. Packaged Windows builds place it in a kill-on-close Job Object; development builds retain and terminate the exact child handle. Startup, authenticated health, at most two automatic recovery attempts, and shutdown are bounded. Raw startup pipe contents are never written to diagnostics. Lifecycle traces redact secrets and paths; safe exports include only bounded codes and log severities, never free-form log messages. Users should still review diagnostic exports before sharing them.
 
 ## Out of scope and remaining limitations
 
@@ -34,5 +34,4 @@ The parent tracks the exact child process. Packaged Windows builds place it in a
 - protection against memory inspection by an equivalent-privilege process;
 - code signing and updater authenticity, which are not yet implemented;
 - confidential vulnerability intake until GitHub private vulnerability reporting is enabled at public launch;
-- claims of complete cross-machine portability or installer lifecycle validation.
-
+- claims beyond the explicitly tested Windows x64 compatibility matrix.

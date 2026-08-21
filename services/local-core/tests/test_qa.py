@@ -196,7 +196,8 @@ def test_safe_diagnostics_redacts_tokens_credentials_urls_and_paths(tmp_path: Pa
                 "level": "ERROR",
                 "message": (
                     f"token={secret} password=hunter2 https://user:pass@example.invalid/repo "
-                    r"C:\Users\Private\Documents\thesis.docx"
+                    r"C:\Users\Private\Documents\thesis.docx "
+                    "source-content-marker = proprietary_algorithm()"
                 ),
             }
         )
@@ -206,7 +207,7 @@ def test_safe_diagnostics_redacts_tokens_credentials_urls_and_paths(tmp_path: Pa
     payload = build_safe_diagnostics(
         qa_mode=True,
         data_root=tmp_path,
-        schema_version=4,
+        schema_version=5,
         project_count=15,
         cache_status="ready",
         last_scan_status="completed",
@@ -219,8 +220,9 @@ def test_safe_diagnostics_redacts_tokens_credentials_urls_and_paths(tmp_path: Pa
     assert "hunter2" not in exported
     assert "user:pass" not in exported
     assert "thesis.docx" not in exported
+    assert "source-content-marker" not in exported
     assert "<redacted>" in exported
-    assert "<remote-url>" in exported
+    assert "ERROR: local diagnostic entry" in exported
     assert redact_text("Authorization: bearer-value") == "Authorization: <redacted>"
 
 

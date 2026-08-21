@@ -24,6 +24,10 @@ Packaged builds use a console-subsystem PyInstaller sidecar because windowed mod
 
 No handshake file is created. Readiness is non-secret and remains on the inherited stdout channel. Application logs use stderr or the configured local log file after the single startup frame.
 
+After initial readiness, the parent performs authenticated health checks. The connection state is `starting`, `ready`, `recovering`, `failed`, or `stopped`. An unexpected child exit, readiness failure, startup timeout, or repeated authenticated health failure can schedule at most two automatic recovery attempts, using 500 ms and 1.5 second backoff. Attempt number, limit, safe failure category, and a user action are observable; session credentials are not. A manual retry starts a new bounded sequence.
+
+Shutdown invalidates scheduled recovery, requests authenticated loopback shutdown, and manages only the exact retained child. Packaged Windows children also remain in the parent's kill-on-close Job Object. DevPulse never terminates processes by global name.
+
 ## Protocol evolution
 
 Rust and Python define protocol version `1` and test that the constants agree. Any incompatible schema change must increment both constants, update bounded parsers and tests, and document migration behavior. Unknown fields are rejected to prevent accidental secret reintroduction.

@@ -1,10 +1,13 @@
 export type CoreConnection = {
-  status: "starting" | "ready" | "error" | "stopped";
+  status: "starting" | "ready" | "recovering" | "failed" | "stopped";
   address?: string;
   token?: string;
   version?: string;
   message?: string;
   diagnosticsPath?: string;
+  failureCode?: string;
+  recoveryAttempt?: number;
+  recoveryLimit?: number;
   qaMode?: boolean;
   qaAutomation?: boolean;
   installQa?: boolean;
@@ -158,7 +161,10 @@ export type Settings = {
   maximum_scan_depth: number;
   maximum_repositories_per_root: number;
   maximum_directories_per_scan: number;
+  maximum_entries_per_scan: number;
   scan_timeout_seconds: number;
+  repository_scan_timeout_seconds: number;
+  maximum_changed_paths: number;
   cache_duration_seconds: number;
   refresh_interval_seconds: number;
   maximum_commits_displayed: number;
@@ -171,7 +177,8 @@ export type Settings = {
   date_time_display: "local" | "utc";
   table_density: "comfortable" | "compact";
   stale_project_days: number;
-  default_sort: "name" | "recent" | "changes" | "health" | "warnings" | "refresh";
+  default_sort:
+    "name" | "recent" | "changes" | "health" | "warnings" | "refresh";
   notification_preferences: Record<string, boolean>;
   notification_severity_threshold: "info" | "success" | "warning" | "error";
   notification_history_length: number;
@@ -196,12 +203,7 @@ export type SettingsPatch = Partial<Omit<Settings, "projects">> & {
 };
 
 export type PageId =
-  | "overview"
-  | "projects"
-  | "activity"
-  | "system"
-  | "diagnostics"
-  | "settings";
+  "overview" | "projects" | "activity" | "system" | "diagnostics" | "settings";
 
 export type ProjectPatch = Partial<{
   path: string;

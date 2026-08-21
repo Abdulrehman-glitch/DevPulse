@@ -1989,6 +1989,19 @@
             ],
             "title": "Maximum Directories Per Scan"
           },
+          "maximum_entries_per_scan": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 250000.0,
+                "minimum": 100.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Entries Per Scan"
+          },
           "scan_timeout_seconds": {
             "anyOf": [
               {
@@ -2001,6 +2014,32 @@
               }
             ],
             "title": "Scan Timeout Seconds"
+          },
+          "repository_scan_timeout_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository Scan Timeout Seconds"
+          },
+          "maximum_changed_paths": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 50.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Changed Paths"
           },
           "cache_duration_seconds": {
             "anyOf": [
@@ -2311,9 +2350,21 @@
             "type": "integer",
             "title": "Maximum Directories Per Scan"
           },
+          "maximum_entries_per_scan": {
+            "type": "integer",
+            "title": "Maximum Entries Per Scan"
+          },
           "scan_timeout_seconds": {
             "type": "integer",
             "title": "Scan Timeout Seconds"
+          },
+          "repository_scan_timeout_seconds": {
+            "type": "integer",
+            "title": "Repository Scan Timeout Seconds"
+          },
+          "maximum_changed_paths": {
+            "type": "integer",
+            "title": "Maximum Changed Paths"
           },
           "cache_duration_seconds": {
             "type": "integer",
@@ -2417,7 +2468,10 @@
           "maximum_scan_depth",
           "maximum_repositories_per_root",
           "maximum_directories_per_scan",
+          "maximum_entries_per_scan",
           "scan_timeout_seconds",
+          "repository_scan_timeout_seconds",
+          "maximum_changed_paths",
           "cache_duration_seconds",
           "refresh_interval_seconds",
           "maximum_commits_displayed",

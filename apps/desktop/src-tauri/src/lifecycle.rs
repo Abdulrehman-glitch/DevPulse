@@ -34,6 +34,9 @@ use windows_sys::Win32::{
 };
 
 const MAX_MANUAL_RESTARTS: u8 = 3;
+const MAX_AUTOMATIC_RECOVERIES: u8 = 2;
+const AUTOMATIC_RECOVERY_BACKOFF_MS: [u64; 2] = [500, 1_500];
+const LIFECYCLE_LOG_MAX_BYTES: u64 = 256 * 1024;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const STARTUP_PROTOCOL_VERSION: u8 = 1;
 const MAX_LAUNCH_FRAME_BYTES: usize = 1024;
@@ -137,6 +140,7 @@ struct RuntimeMode {
     enabled: bool,
     automation: bool,
     install_qa: bool,
+    fail_after_ready: bool,
     root: Option<PathBuf>,
     error: Option<String>,
 }
@@ -149,6 +153,9 @@ impl RuntimeMode {
             std::env::var("DEVPULSE_QA_AUTOMATION").ok().as_deref(),
             std::env::var("DEVPULSE_INSTALL_QA").ok().as_deref(),
             std::env::var("DEVPULSE_QA_FAIL_START").ok().as_deref(),
+            std::env::var("DEVPULSE_QA_FAIL_AFTER_READY")
+                .ok()
+                .as_deref(),
         )
     }
 
@@ -158,12 +165,14 @@ impl RuntimeMode {
         automation: Option<&str>,
         install_qa: Option<&str>,
         fail_start: Option<&str>,
+        fail_after_ready: Option<&str>,
     ) -> Self {
         let install_requested = install_qa == Some("1");
         let auxiliary_qa_requested = root.is_some()
             || automation == Some("1")
             || install_requested
-            || fail_start == Some("1");
+            || fail_start == Some("1")
+            || fail_after_ready == Some("1");
         if mode != Some("1") {
             let explicitly_disabled = matches!(mode, None | Some("0"));
             let error = (!explicitly_disabled || auxiliary_qa_requested).then(|| {
@@ -175,6 +184,7 @@ impl RuntimeMode {
                 enabled: error.is_some(),
                 automation: false,
                 install_qa: false,
+                fail_after_ready: false,
                 root: None,
                 error,
             };
@@ -182,11 +192,13 @@ impl RuntimeMode {
         if !matches!(automation, None | Some("0") | Some("1"))
             || !matches!(install_qa, None | Some("0") | Some("1"))
             || !matches!(fail_start, None | Some("0") | Some("1"))
+            || !matches!(fail_after_ready, None | Some("0") | Some("1"))
         {
             return Self {
                 enabled: true,
                 automation: false,
                 install_qa: false,
+                fail_after_ready: false,
                 root: None,
                 error: Some("QA flags accept only the values 0 or 1.".into()),
             };
@@ -199,6 +211,7 @@ impl RuntimeMode {
                 enabled: true,
                 automation: automation == Some("1"),
                 install_qa: install_requested,
+                fail_after_ready: fail_after_ready == Some("1"),
                 root: None,
                 error: Some("QA mode requires an explicit DEVPULSE_QA_ROOT.".into()),
             };
@@ -208,6 +221,7 @@ impl RuntimeMode {
                 enabled: true,
                 automation: automation == Some("1"),
                 install_qa: install_requested,
+                fail_after_ready: fail_after_ready == Some("1"),
                 root: Some(validated),
                 error: None,
             },
@@ -215,6 +229,7 @@ impl RuntimeMode {
                 enabled: true,
                 automation: automation == Some("1"),
                 install_qa: install_requested,
+                fail_after_ready: fail_after_ready == Some("1"),
                 root: None,
                 error: Some(error),
             },
@@ -261,6 +276,9 @@ pub struct CoreConnection {
     pub version: Option<String>,
     pub message: Option<String>,
     pub diagnostics_path: Option<String>,
+    pub failure_code: Option<String>,
+    pub recovery_attempt: u8,
+    pub recovery_limit: u8,
     pub qa_mode: bool,
     pub qa_automation: bool,
     pub install_qa: bool,
@@ -284,11 +302,19 @@ pub struct DesktopStatus {
 pub enum CoreStatus {
     Starting,
     Ready,
-    Error,
+    Recovering,
+    Failed,
     Stopped,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum StartReason {
+    Initial,
+    Manual,
+    Automatic,
+}
+
+#[derive(Clone, Debug)]
 struct ReadyHandshake {
     address: String,
     instance_id: String,
@@ -392,6 +418,9 @@ pub struct CoreRuntime {
     start_lock: Mutex<()>,
     data_dir: Mutex<Option<PathBuf>>,
     restart_count: AtomicU8,
+    automatic_recovery_count: AtomicU8,
+    recovery_scheduled: AtomicBool,
+    recovery_epoch: AtomicU32,
     shutting_down: AtomicBool,
     sidecar_pid: AtomicU32,
     #[cfg(all(windows, not(debug_assertions)))]
@@ -400,6 +429,8 @@ pub struct CoreRuntime {
     started: Instant,
     qa_mode: bool,
     qa_automation: bool,
+    qa_fail_after_ready: bool,
+    qa_ready_failure_triggered: AtomicBool,
     install_qa: bool,
     qa_root: Option<PathBuf>,
     mode_error: Option<String>,
@@ -417,6 +448,9 @@ impl Default for CoreRuntime {
                 version: None,
                 message: None,
                 diagnostics_path: None,
+                failure_code: None,
+                recovery_attempt: 0,
+                recovery_limit: MAX_AUTOMATIC_RECOVERIES,
                 qa_mode: mode.enabled,
                 qa_automation: mode.automation,
                 install_qa: mode.install_qa,
@@ -424,6 +458,9 @@ impl Default for CoreRuntime {
             start_lock: Mutex::new(()),
             data_dir: Mutex::new(None),
             restart_count: AtomicU8::new(0),
+            automatic_recovery_count: AtomicU8::new(0),
+            recovery_scheduled: AtomicBool::new(false),
+            recovery_epoch: AtomicU32::new(0),
             shutting_down: AtomicBool::new(false),
             sidecar_pid: AtomicU32::new(0),
             #[cfg(all(windows, not(debug_assertions)))]
@@ -432,6 +469,8 @@ impl Default for CoreRuntime {
             started: Instant::now(),
             qa_mode: mode.enabled,
             qa_automation: mode.automation,
+            qa_fail_after_ready: mode.fail_after_ready,
+            qa_ready_failure_triggered: AtomicBool::new(false),
             install_qa: mode.install_qa,
             qa_root: mode.root,
             mode_error: mode.error,
@@ -441,13 +480,30 @@ impl Default for CoreRuntime {
 
 impl CoreRuntime {
     pub fn trace(&self, state: &str, detail: &str) {
-        if !self.qa_mode {
-            return;
-        }
-        let Some(root) = self.qa_root.as_ref() else {
+        let root = self
+            .qa_root
+            .clone()
+            .or_else(|| self.data_dir.lock().expect("data directory lock").clone());
+        let Some(root) = root else {
             return;
         };
-        let path = root.join("lifecycle-state.jsonl");
+        let path = if self.qa_mode {
+            root.join("lifecycle-state.jsonl")
+        } else {
+            root.join("logs").join("lifecycle-state.jsonl")
+        };
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if path
+            .metadata()
+            .map(|metadata| metadata.len() >= LIFECYCLE_LOG_MAX_BYTES)
+            .unwrap_or(false)
+        {
+            let previous = path.with_extension("previous.jsonl");
+            let _ = std::fs::remove_file(&previous);
+            let _ = std::fs::rename(&path, previous);
+        }
         let timestamp_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|value| value.as_millis())
@@ -455,7 +511,7 @@ impl CoreRuntime {
         let payload = serde_json::json!({
             "timestampUnixMs": timestamp_ms,
             "state": state,
-            "detail": detail,
+            "detail": safe_lifecycle_detail(detail),
             "desktopPid": std::process::id(),
             "sidecarPid": self.sidecar_pid.load(Ordering::SeqCst),
             "shutdownRequested": self.shutting_down.load(Ordering::SeqCst),
@@ -597,8 +653,35 @@ impl CoreRuntime {
                     .into(),
             );
         }
+        self.recovery_epoch.fetch_add(1, Ordering::SeqCst);
+        self.recovery_scheduled.store(false, Ordering::SeqCst);
+        self.automatic_recovery_count.store(0, Ordering::SeqCst);
         self.stop_child_gracefully();
         Ok(())
+    }
+
+    fn reserve_automatic_recovery(&self) -> Option<(u8, u64, u32)> {
+        if self.shutting_down.load(Ordering::SeqCst) {
+            return None;
+        }
+        if self.recovery_scheduled.swap(true, Ordering::SeqCst) {
+            return Some((
+                self.automatic_recovery_count.load(Ordering::SeqCst),
+                0,
+                self.recovery_epoch.load(Ordering::SeqCst),
+            ));
+        }
+        let completed = self.automatic_recovery_count.load(Ordering::SeqCst);
+        if completed >= MAX_AUTOMATIC_RECOVERIES {
+            self.recovery_scheduled.store(false, Ordering::SeqCst);
+            return None;
+        }
+        let attempt = self.automatic_recovery_count.fetch_add(1, Ordering::SeqCst) + 1;
+        Some((
+            attempt,
+            AUTOMATIC_RECOVERY_BACKOFF_MS[(attempt - 1) as usize],
+            self.recovery_epoch.load(Ordering::SeqCst),
+        ))
     }
 }
 
@@ -618,14 +701,29 @@ fn select_runtime_data_directory(
 }
 
 pub fn start_core(app: &AppHandle, manual_restart: bool) -> Result<CoreConnection, String> {
+    let reason = if manual_restart {
+        StartReason::Manual
+    } else {
+        StartReason::Initial
+    };
+    let result = start_core_with_reason(app, reason);
+    if let Err(message) = &result {
+        if reason == StartReason::Initial && !schedule_automatic_recovery(app, message) {
+            mark_recovery_exhausted(app, message);
+        }
+    }
+    result
+}
+
+fn start_core_with_reason(app: &AppHandle, reason: StartReason) -> Result<CoreConnection, String> {
     let startup_started = Instant::now();
     let runtime = app.state::<CoreRuntime>();
     runtime.trace(
         "core-start-requested",
-        if manual_restart {
-            "manual restart"
-        } else {
-            "initial start"
+        match reason {
+            StartReason::Initial => "initial start",
+            StartReason::Manual => "manual restart",
+            StartReason::Automatic => "automatic recovery",
         },
     );
     let _start_guard = runtime.start_lock.lock().expect("core startup lock");
@@ -635,10 +733,14 @@ pub fn start_core(app: &AppHandle, manual_restart: bool) -> Result<CoreConnectio
     if let Some(message) = runtime.mode_error.clone() {
         return Err(message);
     }
-    if manual_restart {
-        runtime.prepare_restart()?;
-    } else if runtime.child.lock().expect("core child lock").is_some() {
-        return Ok(runtime.snapshot());
+    match reason {
+        StartReason::Manual => runtime.prepare_restart()?,
+        StartReason::Automatic => runtime.stop_child_gracefully(),
+        StartReason::Initial => {
+            if runtime.child.lock().expect("core child lock").is_some() {
+                return Ok(runtime.snapshot());
+            }
+        }
     }
 
     // Never invoke Tauri's Known Folder-backed AppData resolver in QA mode. The explicit
@@ -664,6 +766,9 @@ pub fn start_core(app: &AppHandle, manual_restart: bool) -> Result<CoreConnectio
         version: None,
         message: None,
         diagnostics_path: Some(diagnostics.to_string_lossy().into_owned()),
+        failure_code: None,
+        recovery_attempt: runtime.automatic_recovery_count.load(Ordering::SeqCst),
+        recovery_limit: MAX_AUTOMATIC_RECOVERIES,
         qa_mode: runtime.qa_mode,
         qa_automation: runtime.qa_automation,
         install_qa: runtime.install_qa,
@@ -686,7 +791,7 @@ pub fn start_core(app: &AppHandle, manual_restart: bool) -> Result<CoreConnectio
             record_lifecycle_event(
                 &handshake.address,
                 &token,
-                if manual_restart {
+                if reason != StartReason::Initial {
                     "core-restarted"
                 } else {
                     "application-started"
@@ -694,32 +799,43 @@ pub fn start_core(app: &AppHandle, manual_restart: bool) -> Result<CoreConnectio
             );
             let connection = CoreConnection {
                 status: CoreStatus::Ready,
-                address: Some(handshake.address),
-                token: Some(token),
+                address: Some(handshake.address.clone()),
+                token: Some(token.clone()),
                 version: Some(version),
                 message: None,
                 diagnostics_path: Some(diagnostics.to_string_lossy().into_owned()),
+                failure_code: None,
+                recovery_attempt: runtime.automatic_recovery_count.load(Ordering::SeqCst),
+                recovery_limit: MAX_AUTOMATIC_RECOVERIES,
                 qa_mode: runtime.qa_mode,
                 qa_automation: runtime.qa_automation,
                 install_qa: runtime.install_qa,
             };
             *runtime.connection.lock().expect("core connection lock") = connection.clone();
+            start_authenticated_health_monitor(app, handshake, token);
+            if reason == StartReason::Initial {
+                schedule_qa_post_readiness_failure(app);
+            }
             Ok(connection)
         }
         Err(message) => {
-            runtime.trace("core-start-failed", &message);
+            let failure_code = classify_startup_error(&message);
+            runtime.trace("core-start-failed", failure_code);
             if let Some(child) = runtime.child.lock().expect("core child lock").take() {
                 child.kill();
             }
             #[cfg(all(windows, not(debug_assertions)))]
             runtime.sidecar_job.lock().expect("sidecar job lock").take();
             let connection = CoreConnection {
-                status: CoreStatus::Error,
+                status: CoreStatus::Failed,
                 address: None,
                 token: None,
                 version: None,
-                message: Some(message.clone()),
+                message: Some(safe_failure_message(&message)),
                 diagnostics_path: Some(diagnostics.to_string_lossy().into_owned()),
+                failure_code: Some(failure_code.into()),
+                recovery_attempt: runtime.automatic_recovery_count.load(Ordering::SeqCst),
+                recovery_limit: MAX_AUTOMATIC_RECOVERIES,
                 qa_mode: runtime.qa_mode,
                 qa_automation: runtime.qa_automation,
                 install_qa: runtime.install_qa,
@@ -735,6 +851,146 @@ pub fn start_core(app: &AppHandle, manual_restart: bool) -> Result<CoreConnectio
             Err(message)
         }
     }
+}
+
+fn schedule_qa_post_readiness_failure(app: &AppHandle) {
+    let runtime = app.state::<CoreRuntime>();
+    if !runtime.qa_mode
+        || !runtime.qa_fail_after_ready
+        || runtime
+            .qa_ready_failure_triggered
+            .swap(true, Ordering::SeqCst)
+    {
+        return;
+    }
+    runtime.trace(
+        "qa-post-readiness-failure-scheduled",
+        "exact owned child termination",
+    );
+    let failure_app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(750));
+        let failure_runtime = failure_app.state::<CoreRuntime>();
+        if failure_runtime.shutting_down.load(Ordering::SeqCst) {
+            return;
+        }
+        let child = failure_runtime
+            .child
+            .lock()
+            .expect("core child lock")
+            .take();
+        if let Some(child) = child {
+            failure_runtime.trace(
+                "qa-post-readiness-failure-injected",
+                "exact owned child terminated",
+            );
+            child.kill();
+        }
+    });
+}
+
+fn schedule_automatic_recovery(app: &AppHandle, failure: &str) -> bool {
+    let runtime = app.state::<CoreRuntime>();
+    let Some((attempt, backoff_ms, epoch)) = runtime.reserve_automatic_recovery() else {
+        return false;
+    };
+    if backoff_ms == 0 {
+        return true;
+    }
+    let failure_code = classify_startup_error(failure).to_string();
+    {
+        let mut connection = runtime.connection.lock().expect("core connection lock");
+        connection.status = CoreStatus::Recovering;
+        connection.address = None;
+        connection.token = None;
+        connection.version = None;
+        connection.message = Some(format!(
+            "The local service stopped. Automatic recovery attempt {attempt} of {MAX_AUTOMATIC_RECOVERIES} is scheduled."
+        ));
+        connection.failure_code = Some(failure_code.clone());
+        connection.recovery_attempt = attempt;
+        connection.recovery_limit = MAX_AUTOMATIC_RECOVERIES;
+    }
+    runtime.trace(
+        "core-recovery-scheduled",
+        &format!("attempt-{attempt}-{failure_code}"),
+    );
+    let recovery_app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(backoff_ms));
+        let recovery_runtime = recovery_app.state::<CoreRuntime>();
+        if recovery_runtime.shutting_down.load(Ordering::SeqCst)
+            || recovery_runtime.recovery_epoch.load(Ordering::SeqCst) != epoch
+        {
+            recovery_runtime
+                .recovery_scheduled
+                .store(false, Ordering::SeqCst);
+            return;
+        }
+        let result = start_core_with_reason(&recovery_app, StartReason::Automatic);
+        recovery_runtime
+            .recovery_scheduled
+            .store(false, Ordering::SeqCst);
+        if let Err(message) = result {
+            if !schedule_automatic_recovery(&recovery_app, &message) {
+                mark_recovery_exhausted(&recovery_app, &message);
+            }
+        }
+    });
+    true
+}
+
+fn mark_recovery_exhausted(app: &AppHandle, failure: &str) {
+    let runtime = app.state::<CoreRuntime>();
+    if runtime.shutting_down.load(Ordering::SeqCst) {
+        return;
+    }
+    let code = classify_startup_error(failure);
+    let mut connection = runtime.connection.lock().expect("core connection lock");
+    connection.status = CoreStatus::Failed;
+    connection.address = None;
+    connection.token = None;
+    connection.version = None;
+    connection.failure_code = Some(code.into());
+    connection.recovery_attempt = runtime.automatic_recovery_count.load(Ordering::SeqCst);
+    connection.recovery_limit = MAX_AUTOMATIC_RECOVERIES;
+    connection.message = Some(
+        "The local service could not recover after two bounded attempts. Use Retry startup or restart DevPulse."
+            .into(),
+    );
+    drop(connection);
+    runtime.trace("core-recovery-exhausted", code);
+}
+
+fn start_authenticated_health_monitor(app: &AppHandle, handshake: ReadyHandshake, token: String) {
+    let health_app = app.clone();
+    std::thread::spawn(move || {
+        let mut consecutive_failures = 0;
+        loop {
+            std::thread::sleep(Duration::from_secs(2));
+            let runtime = health_app.state::<CoreRuntime>();
+            if runtime.shutting_down.load(Ordering::SeqCst) {
+                return;
+            }
+            let connection = runtime.snapshot();
+            if connection.status != CoreStatus::Ready
+                || connection.token.as_deref() != Some(token.as_str())
+            {
+                return;
+            }
+            if authenticated_health_once(&handshake, &token).is_some() {
+                consecutive_failures = 0;
+                continue;
+            }
+            consecutive_failures += 1;
+            if consecutive_failures >= 2 {
+                if !schedule_automatic_recovery(&health_app, "health check failed") {
+                    mark_recovery_exhausted(&health_app, "health check failed");
+                }
+                return;
+            }
+        }
+    });
 }
 
 fn sidecar_arguments(data_dir: &std::path::Path, qa_mode: bool) -> Vec<String> {
@@ -885,14 +1141,24 @@ fn spawn_core(
                     );
                 }
                 CommandEvent::Error(_) => {
+                    let failed_after_readiness = startup_sender.is_none();
                     if let Some(sender) = startup_sender.take() {
                         let _ =
                             sender.send(Err("The local service startup channel failed.".into()));
+                    }
+                    if failed_after_readiness
+                        && !schedule_automatic_recovery(
+                            &monitor_app,
+                            "sidecar event channel failed",
+                        )
+                    {
+                        mark_recovery_exhausted(&monitor_app, "sidecar event channel failed");
                     }
                     break;
                 }
                 CommandEvent::Terminated(_) => {
                     let runtime = monitor_app.state::<CoreRuntime>();
+                    let exited_after_readiness = startup_sender.is_none();
                     if let Some(sender) = startup_sender.take() {
                         let _ =
                             sender.send(Err("The local service exited before readiness.".into()));
@@ -902,13 +1168,11 @@ fn spawn_core(
                         "sidecar-termination-event",
                         "Tauri shell reported sidecar termination",
                     );
-                    if !runtime.shutting_down.load(Ordering::SeqCst) {
-                        let mut connection =
-                            runtime.connection.lock().expect("core connection lock");
-                        connection.status = CoreStatus::Error;
-                        connection.message = Some("The local service stopped unexpectedly. Use Retry startup to restart it.".into());
-                        connection.address = None;
-                        connection.token = None;
+                    if exited_after_readiness
+                        && !runtime.shutting_down.load(Ordering::SeqCst)
+                        && !schedule_automatic_recovery(&monitor_app, "sidecar exited unexpectedly")
+                    {
+                        mark_recovery_exhausted(&monitor_app, "sidecar exited unexpectedly");
                     }
                     break;
                 }
@@ -917,12 +1181,18 @@ fn spawn_core(
                         "sidecar-unsupported-event",
                         "Tauri shell reported an unsupported sidecar event",
                     );
+                    let unsupported_after_readiness = startup_sender.is_none();
                     if let Some(sender) = startup_sender.take() {
                         let _ = sender.send(Err(
                             "The local service returned an unsupported startup event.".into(),
                         ));
-                        break;
                     }
+                    if unsupported_after_readiness
+                        && !schedule_automatic_recovery(&monitor_app, "unsupported sidecar event")
+                    {
+                        mark_recovery_exhausted(&monitor_app, "unsupported sidecar event");
+                    }
+                    break;
                 }
             }
         }
@@ -1117,15 +1387,59 @@ fn validate_qa_descendant(path: &std::path::Path, root: &std::path::Path) -> Res
 }
 
 fn classify_startup_error(message: &str) -> &'static str {
-    if message.contains("credential") {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("credential") || lower.contains("authentication") {
         "authentication_failed"
-    } else if message.contains("15 seconds") {
+    } else if lower.contains("15 seconds") || lower.contains("timeout") {
         "startup_timeout"
-    } else if message.contains("unavailable") || message.contains("missing") {
+    } else if lower.contains("health check") {
+        "health_check_failed"
+    } else if lower.contains("exited") {
+        "unexpected_exit"
+    } else if lower.contains("channel") || lower.contains("event") {
+        "sidecar_channel_failed"
+    } else if lower.contains("unavailable") || lower.contains("missing") {
         "sidecar_unavailable"
     } else {
         "sidecar_startup_failed"
     }
+}
+
+fn safe_failure_message(message: &str) -> String {
+    match classify_startup_error(message) {
+        "authentication_failed" => {
+            "The local service did not accept its in-memory session credential.".into()
+        }
+        "startup_timeout" => "The local service did not become ready before the timeout.".into(),
+        "health_check_failed" => {
+            "The local service did not pass its authenticated health check.".into()
+        }
+        "unexpected_exit" => "The local service stopped unexpectedly.".into(),
+        "sidecar_channel_failed" => "The local service process channel failed unexpectedly.".into(),
+        "sidecar_unavailable" => "The packaged local service is unavailable.".into(),
+        _ => "The local service could not start. Review DevPulse diagnostics.".into(),
+    }
+}
+
+fn safe_lifecycle_detail(detail: &str) -> String {
+    let lower = detail.to_ascii_lowercase();
+    let contains_secret_shape = ["token", "password", "secret", "credential"]
+        .iter()
+        .any(|word| lower.contains(word))
+        || detail.contains(":\\")
+        || detail.contains('/')
+        || detail.contains("\\\\")
+        || detail
+            .split(|value: char| !value.is_ascii_hexdigit())
+            .any(|run| run.len() >= 24);
+    if contains_secret_shape {
+        return "redacted-diagnostic-detail".into();
+    }
+    detail
+        .chars()
+        .filter(|value| value.is_ascii_alphanumeric() || matches!(value, ' ' | '-' | '_' | '.'))
+        .take(160)
+        .collect()
 }
 
 pub fn write_qa_marker(data_dir: &std::path::Path, name: &str, payload: &serde_json::Value) {
@@ -1273,33 +1587,43 @@ fn verify_health(handshake: &ReadyHandshake, token: &str) -> Result<String, Stri
     if !valid_loopback_address(&handshake.address) || handshake.instance_id.is_empty() {
         return Err("The local service returned an unsafe address.".into());
     }
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(1))
-        .build()
-        .map_err(|error| error.to_string())?;
     for _ in 0..20 {
-        if let Ok(response) = client
-            .get(format!("{}/health", handshake.address))
-            .header("X-DevPulse-Token", token)
-            .send()
-        {
-            if response.status().is_success() {
-                let payload: serde_json::Value =
-                    response.json().map_err(|error| error.to_string())?;
-                if payload.get("instance_id").and_then(|value| value.as_str())
-                    == Some(handshake.instance_id.as_str())
-                {
-                    return Ok(payload
-                        .get("version")
-                        .and_then(|value| value.as_str())
-                        .unwrap_or("unknown")
-                        .to_string());
-                }
-            }
+        if let Some(version) = authenticated_health_once(handshake, token) {
+            return Ok(version);
         }
         std::thread::sleep(Duration::from_millis(150));
     }
     Err("The local service started but did not pass its health check.".into())
+}
+
+fn authenticated_health_once(handshake: &ReadyHandshake, token: &str) -> Option<String> {
+    if !valid_loopback_address(&handshake.address) || handshake.instance_id.is_empty() {
+        return None;
+    }
+    let response = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(1))
+        .build()
+        .ok()?
+        .get(format!("{}/health", handshake.address))
+        .header("X-DevPulse-Token", token)
+        .send()
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let payload: serde_json::Value = response.json().ok()?;
+    if payload.get("instance_id").and_then(|value| value.as_str())
+        != Some(handshake.instance_id.as_str())
+    {
+        return None;
+    }
+    Some(
+        payload
+            .get("version")
+            .and_then(|value| value.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+    )
 }
 
 fn record_lifecycle_event(address: &str, token: &str, event: &str) {
@@ -1352,6 +1676,26 @@ mod tests {
         assert!(runtime.prepare_restart().is_ok());
         assert!(runtime.prepare_restart().is_ok());
         assert!(runtime.prepare_restart().is_err());
+    }
+
+    #[test]
+    fn runtime_reserves_only_two_observable_automatic_recoveries() {
+        let runtime = CoreRuntime::default();
+        let first = runtime
+            .reserve_automatic_recovery()
+            .expect("first recovery");
+        assert_eq!((first.0, first.1), (1, 500));
+        let pending = runtime
+            .reserve_automatic_recovery()
+            .expect("existing reservation remains pending");
+        assert_eq!(pending.1, 0);
+        runtime.recovery_scheduled.store(false, Ordering::SeqCst);
+        let second = runtime
+            .reserve_automatic_recovery()
+            .expect("second recovery");
+        assert_eq!((second.0, second.1), (2, 1_500));
+        runtime.recovery_scheduled.store(false, Ordering::SeqCst);
+        assert!(runtime.reserve_automatic_recovery().is_none());
     }
 
     #[test]
@@ -1435,6 +1779,24 @@ mod tests {
     }
 
     #[test]
+    fn lifecycle_diagnostics_redact_credentials_paths_and_long_identifiers() {
+        let token = "f".repeat(64);
+        assert_eq!(
+            safe_lifecycle_detail(&format!("token={token}")),
+            "redacted-diagnostic-detail"
+        );
+        assert_eq!(
+            safe_lifecycle_detail(r"failure at C:\Users\private\settings.json"),
+            "redacted-diagnostic-detail"
+        );
+        assert_eq!(
+            safe_lifecycle_detail("failure at https://example.invalid/report"),
+            "redacted-diagnostic-detail"
+        );
+        assert!(!safe_failure_message(&format!("credential {token}")).contains(&token));
+    }
+
+    #[test]
     fn launch_frame_is_versioned_bounded_and_contains_the_ephemeral_token_once() {
         let token = "b".repeat(64);
         let frame = launch_message(&token).expect("valid launch frame");
@@ -1482,7 +1844,7 @@ mod tests {
     #[test]
     fn qa_mode_requires_the_explicit_launch_value() {
         for value in [None, Some("0")] {
-            let mode = RuntimeMode::from_values(value, None, None, None, None);
+            let mode = RuntimeMode::from_values(value, None, None, None, None, None);
             assert!(!mode.enabled);
             assert!(!mode.automation);
             assert!(!mode.install_qa);
@@ -1490,12 +1852,12 @@ mod tests {
             assert!(mode.error.is_none());
         }
         for value in [Some(""), Some("true"), Some("yes")] {
-            let mode = RuntimeMode::from_values(value, None, None, None, None);
+            let mode = RuntimeMode::from_values(value, None, None, None, None, None);
             assert!(mode.enabled);
             assert!(mode.error.is_some());
         }
 
-        let missing_root = RuntimeMode::from_values(Some("1"), None, None, None, None);
+        let missing_root = RuntimeMode::from_values(Some("1"), None, None, None, None, None);
         assert!(missing_root.enabled);
         assert!(missing_root.root.is_none());
         assert!(missing_root.error.is_some());
@@ -1504,6 +1866,7 @@ mod tests {
             Some("1"),
             Some(r"C:\sandbox\DevPulse-QA"),
             Some("1"),
+            None,
             None,
             None,
         );
@@ -1515,13 +1878,13 @@ mod tests {
 
     #[test]
     fn installed_qa_requires_the_normal_qa_gate() {
-        let refused = RuntimeMode::from_values(None, None, Some("1"), Some("1"), None);
+        let refused = RuntimeMode::from_values(None, None, Some("1"), Some("1"), None, None);
         assert!(refused.enabled);
         assert!(!refused.install_qa);
         assert!(refused.error.is_some());
         assert!(refused.root.is_none());
 
-        let one_variable = RuntimeMode::from_values(None, None, None, Some("1"), None);
+        let one_variable = RuntimeMode::from_values(None, None, None, Some("1"), None, None);
         assert!(one_variable.enabled);
         assert!(one_variable.error.is_some());
 
@@ -1531,10 +1894,31 @@ mod tests {
             Some("1"),
             Some("1"),
             None,
+            None,
         );
         assert!(enabled.enabled);
         assert!(enabled.automation);
         assert!(enabled.install_qa);
+        assert!(enabled.error.is_none());
+    }
+
+    #[test]
+    fn post_readiness_failure_injection_requires_an_explicit_qa_boundary() {
+        let refused = RuntimeMode::from_values(None, None, None, None, None, Some("1"));
+        assert!(refused.enabled);
+        assert!(refused.error.is_some());
+        assert!(!refused.fail_after_ready);
+
+        let enabled = RuntimeMode::from_values(
+            Some("1"),
+            Some(r"C:\runner\DevPulse-QA-recovery"),
+            None,
+            None,
+            None,
+            Some("1"),
+        );
+        assert!(enabled.enabled);
+        assert!(enabled.fail_after_ready);
         assert!(enabled.error.is_none());
     }
 
@@ -1602,6 +1986,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
         let runtime = CoreRuntime {
             child: Mutex::new(None),
@@ -1612,6 +1997,9 @@ mod tests {
                 version: None,
                 message: None,
                 diagnostics_path: None,
+                failure_code: None,
+                recovery_attempt: 0,
+                recovery_limit: MAX_AUTOMATIC_RECOVERIES,
                 qa_mode: true,
                 qa_automation: false,
                 install_qa: false,
@@ -1619,12 +2007,17 @@ mod tests {
             start_lock: Mutex::new(()),
             data_dir: Mutex::new(None),
             restart_count: AtomicU8::new(0),
+            automatic_recovery_count: AtomicU8::new(0),
+            recovery_scheduled: AtomicBool::new(false),
+            recovery_epoch: AtomicU32::new(0),
             shutting_down: AtomicBool::new(false),
             sidecar_pid: AtomicU32::new(0),
             startup_duration_ms: AtomicU32::new(0),
             started: Instant::now(),
             qa_mode: true,
             qa_automation: false,
+            qa_fail_after_ready: false,
+            qa_ready_failure_triggered: AtomicBool::new(false),
             install_qa: false,
             qa_root: mode.root,
             mode_error: mode.error,

@@ -160,7 +160,6 @@ function New-LegacyConfiguration([int]$Schema) {
         notification_preferences = @{ scan_completed = $true; warning_created = $false }
         notification_severity_threshold = "info"
         notification_history_length = 200
-        unknown_beta_field = "must be ignored"
     }
     if ($Schema -eq 2) {
         $Payload.Remove("notification_preferences")
@@ -212,7 +211,7 @@ function Get-BetaQaResult([string]$Scenario, [int]$LegacySchema) {
     if (-not (Test-Path -LiteralPath $Backup -PathType Leaf)) { throw "$Scenario did not create the pre-migration backup." }
     $BackupPayload = Get-Content -LiteralPath $Backup -Raw | ConvertFrom-Json
     $FinalPayload = Get-Content -LiteralPath (Join-Path $QaRoot "settings.json") -Raw | ConvertFrom-Json
-    if ($FinalPayload.schema_version -ne 4) { throw "$Scenario did not finish at configuration schema 4." }
+    if ($FinalPayload.schema_version -ne 5) { throw "$Scenario did not finish at configuration schema 5." }
     $MigratedProjects = @($MarkerPayload.checks.configurationBeforeQaReset)
     if ($MigratedProjects.Count -lt 1) { throw "$Scenario did not report the migrated configuration before QA fixture reset." }
     $PathPreserved = ([IO.Path]::GetFullPath([string]$BackupPayload.projects[0].path) -eq
@@ -232,7 +231,7 @@ function Get-BetaQaResult([string]$Scenario, [int]$LegacySchema) {
         migrationBackup = "settings.pre-migration-v$LegacySchema.json"
         registeredPathPreserved = $PathPreserved
         favoriteTagsNotesArchivedPreserved = $MetadataPreserved
-        unknownFieldsIgnored = $null -eq $FinalPayload.PSObject.Properties["unknown_beta_field"]
+        supportedFixtureContainedNoUnknownFields = $true
         boundedAutomationClose = $true
         artificialDataOnly = $true
     }

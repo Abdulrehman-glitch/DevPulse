@@ -27,6 +27,7 @@ def redact_text(value: str) -> str:
 
 
 def safe_log_excerpt(log_path: Path, limit: int = 12) -> list[str]:
+    """Summarise local log records without exporting their free-form messages."""
     try:
         lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-limit:]
     except OSError:
@@ -35,10 +36,12 @@ def safe_log_excerpt(log_path: Path, limit: int = 12) -> list[str]:
     for line in lines:
         try:
             payload = json.loads(line)
-            text = f"{payload.get('level', 'INFO')}: {payload.get('message', '')}"
+            level = str(payload.get("level", "INFO")).upper()
         except (json.JSONDecodeError, TypeError):
-            text = line
-        result.append(redact_text(text)[:500])
+            level = "UNKNOWN"
+        if level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            level = "UNKNOWN"
+        result.append(f"{level}: local diagnostic entry")
     return result
 
 

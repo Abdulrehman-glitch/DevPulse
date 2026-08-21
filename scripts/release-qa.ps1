@@ -140,18 +140,25 @@ function Test-ProcessAlive([int]$Id) {
     return Test-LifecycleProcessIdentity $Script:ReleaseQaProcessIdentities $Id
 }
 
-function Start-DevPulseQa([string]$Executable, [bool]$Automation, [bool]$FailStart) {
+function Start-DevPulseQa(
+    [string]$Executable,
+    [bool]$Automation,
+    [bool]$FailStart,
+    [bool]$FailAfterReady = $false
+) {
     $Previous = @{
         Mode = [Environment]::GetEnvironmentVariable("DEVPULSE_QA_MODE", "Process")
         Root = [Environment]::GetEnvironmentVariable("DEVPULSE_QA_ROOT", "Process")
         Automation = [Environment]::GetEnvironmentVariable("DEVPULSE_QA_AUTOMATION", "Process")
         Fail = [Environment]::GetEnvironmentVariable("DEVPULSE_QA_FAIL_START", "Process")
+        FailAfterReady = [Environment]::GetEnvironmentVariable("DEVPULSE_QA_FAIL_AFTER_READY", "Process")
     }
     try {
         $env:DEVPULSE_QA_MODE = "1"
         $env:DEVPULSE_QA_ROOT = $QaRoot
         $env:DEVPULSE_QA_AUTOMATION = if ($Automation) { "1" } else { "0" }
         $env:DEVPULSE_QA_FAIL_START = if ($FailStart) { "1" } else { "0" }
+        $env:DEVPULSE_QA_FAIL_AFTER_READY = if ($FailAfterReady) { "1" } else { "0" }
         $Process = Start-Process -FilePath $Executable -WorkingDirectory $Root -PassThru
         [void](Register-LifecycleProcessIdentity $Script:ReleaseQaProcessIdentities $Process.Id)
         Write-LifecycleTransition -Recorder $LifecycleRecorder -State "native-process-created" -DesktopPid $Process.Id
@@ -162,6 +169,7 @@ function Start-DevPulseQa([string]$Executable, [bool]$Automation, [bool]$FailSta
         [Environment]::SetEnvironmentVariable("DEVPULSE_QA_ROOT", $Previous.Root, "Process")
         [Environment]::SetEnvironmentVariable("DEVPULSE_QA_AUTOMATION", $Previous.Automation, "Process")
         [Environment]::SetEnvironmentVariable("DEVPULSE_QA_FAIL_START", $Previous.Fail, "Process")
+        [Environment]::SetEnvironmentVariable("DEVPULSE_QA_FAIL_AFTER_READY", $Previous.FailAfterReady, "Process")
     }
 }
 
@@ -190,6 +198,32 @@ function Wait-ForFile([string]$Path, [int]$TimeoutSeconds) {
         Start-Sleep -Milliseconds 100
     }
     return $false
+}
+
+function Wait-ForRecoveryEvidence([string]$Path, [int]$TimeoutSeconds) {
+    $Deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTime]::UtcNow -lt $Deadline) {
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            try {
+                $Events = @(Get-Content -LiteralPath $Path | ForEach-Object { $_ | ConvertFrom-Json })
+                $Ready = @($Events | Where-Object { $_.state -eq "core-authenticated-ready" }).Count
+                $Scheduled = @($Events | Where-Object { $_.state -eq "core-recovery-scheduled" }).Count
+                $Injected = @($Events | Where-Object { $_.state -eq "qa-post-readiness-failure-injected" }).Count
+                if ($Ready -eq 2 -and $Scheduled -eq 1 -and $Injected -eq 1) {
+                    return [ordered]@{
+                        authenticatedReadyCount = $Ready
+                        recoveryScheduledCount = $Scheduled
+                        ownedFailureInjectionCount = $Injected
+                    }
+                }
+            }
+            catch {
+                # A JSONL record may be observed between its append and newline flush.
+            }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw "Bounded post-readiness recovery evidence did not complete."
 }
 
 function Stop-OwnedLaunch([System.Diagnostics.Process]$Process, [string]$Kind) {
@@ -309,6 +343,7 @@ $CheckpointPath = Join-Path $QaRoot "qa-frontend-checkpoint.json"
 $FailurePath = Join-Path $QaRoot "qa-startup-failure.json"
 $AutomationChecks = $null
 $FailureResult = $null
+$RecoveryIntegration = $null
 $DuplicateResult = $null
 $InvalidRecovery = $false
 $QaRunCompleted = $false
@@ -340,7 +375,7 @@ try {
     [void](Assert-Checkpoint $CheckpointPath)
     $RecoveredSettings = Get-Content -LiteralPath (Join-Path $QaRoot "settings.json") -Raw | ConvertFrom-Json
     $RecoveredManifest = Get-Content -LiteralPath (Join-Path $QaRoot "test-lab\qa-manifest.json") -Raw | ConvertFrom-Json
-    $InvalidRecovery = $RecoveredSettings.schema_version -eq 4 -and $RecoveredManifest.artificial -eq $true
+    $InvalidRecovery = $RecoveredSettings.schema_version -eq 5 -and $RecoveredManifest.artificial -eq $true
     if (-not $InvalidRecovery) { throw "Invalid QA data was not safely recovered." }
     $NormalResults += Stop-OwnedLaunch $Process "normal-2-invalid-data-recovery"
 
@@ -348,6 +383,32 @@ try {
     if (-not (Wait-ForWindow $Process 15)) { throw "Third normal launch did not create a window." }
     Start-Sleep -Seconds 4
     $NormalResults += Stop-OwnedLaunch $Process "normal-3"
+
+    # Exercise migration, artificial scanner failures, and a real owned-child exit in one
+    # isolated lifecycle. Recovery must produce a second authenticated ready state exactly once.
+    $LifecyclePath = Join-Path $QaRoot "lifecycle-state.jsonl"
+    $MigrationBackup = Join-Path $QaRoot "settings.pre-migration-v4.json"
+    Remove-Item -LiteralPath $LifecyclePath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $MigrationBackup -Force -ErrorAction SilentlyContinue
+    @{ schema_version = 4; onboarding_completed = $true } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $QaRoot "settings.json") -Encoding UTF8
+    $Process = Start-DevPulseQa $Executable $false $false $true
+    if (-not (Wait-ForWindow $Process 15)) { throw "Recovery integration did not create a native window." }
+    $RecoveryEvents = Wait-ForRecoveryEvidence $LifecyclePath 45
+    if (-not (Test-Path -LiteralPath $MigrationBackup -PathType Leaf)) {
+        throw "Recovery integration did not preserve the schema-4 migration source."
+    }
+    $IntegratedSettings = Get-Content -LiteralPath (Join-Path $QaRoot "settings.json") -Raw | ConvertFrom-Json
+    if ($IntegratedSettings.schema_version -ne 5) {
+        throw "Recovery integration did not commit schema 5 before sidecar recovery."
+    }
+    $RecoveryIntegration = [ordered]@{
+        migrationSourcePreserved = $true
+        migratedSchema = 5
+        artificialScannerFixtures = $true
+        events = $RecoveryEvents
+        close = Stop-OwnedLaunch $Process "migration-scanner-sidecar-recovery"
+    }
 
     # A second desktop process must exit without creating another sidecar.
     $Primary = Start-DevPulseQa $Executable $false $false
@@ -424,6 +485,7 @@ $Report = [ordered]@{
     automationChecks = $AutomationChecks.checks
     resetRegeneration = $AutomationChecks.checks.refreshCompleted -eq $true
     invalidDataRecovery = $InvalidRecovery
+    migrationScannerSidecarRecovery = $RecoveryIntegration
     localCoreFailure = $FailureResult
     duplicateLaunch = $DuplicateResult
     filesystemAudit = [ordered]@{
