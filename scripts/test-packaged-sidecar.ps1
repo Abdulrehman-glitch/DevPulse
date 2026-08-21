@@ -88,8 +88,13 @@ $Process.StartInfo = $StartInfo
 try {
     if (-not $Process.Start()) { throw "Could not start the packaged sidecar." }
     $ErrorRead = $Process.StandardError.ReadToEndAsync()
-    $Process.StandardInput.WriteLine("DEVPULSE_LAUNCH $Launch")
-    $Process.StandardInput.Flush()
+    # The protocol is UTF-8, independent of the runner console/code-page defaults.
+    # Write the frame bytes directly so StreamWriter cannot select UTF-16 or add a BOM.
+    $Utf8NoBom = [Text.UTF8Encoding]::new($false)
+    $LaunchFrame = $Utf8NoBom.GetBytes("DEVPULSE_LAUNCH $Launch`n")
+    if ($LaunchFrame.Length -gt 1025) { throw "The packaged sidecar launch frame exceeded its byte bound." }
+    $Process.StandardInput.BaseStream.Write($LaunchFrame, 0, $LaunchFrame.Length)
+    $Process.StandardInput.BaseStream.Flush()
     $Process.StandardInput.Close()
 
     $ReadyRead = $Process.StandardOutput.ReadLineAsync()
