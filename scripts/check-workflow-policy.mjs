@@ -40,6 +40,35 @@ for (const [name, source] of sources) {
       `${name} introduces a cache without explicit storage-policy review.`,
     );
   }
+
+  const lines = source.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^\s*run:\s*\|\s*$/.test(lines[index])) continue;
+    const runIndent = lines[index].match(/^\s*/)[0].length;
+    const preceding = lines.slice(Math.max(0, index - 3), index).join("\n");
+    if (!/shell:\s*pwsh\s*$/.test(preceding)) continue;
+    const body = [];
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor];
+      if (line.trim() && line.match(/^\s*/)[0].length <= runIndent) break;
+      body.push(line);
+    }
+    const nativeCommands = body.filter((line) =>
+      /^\s*(?:npm|python|cargo|rustup|git|\.\\\.venv\\Scripts\\python\.exe)\b/.test(
+        line,
+      ),
+    );
+    if (
+      nativeCommands.length > 1 &&
+      !body.some((line) =>
+        line.includes("$PSNativeCommandUseErrorActionPreference = $true"),
+      )
+    ) {
+      throw new Error(
+        `${name} has a multi-command PowerShell gate without native fail-fast semantics.`,
+      );
+    }
+  }
 }
 
 for (const ordinary of ["ci.yml", "windows-compatibility.yml"]) {
