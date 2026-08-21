@@ -45,8 +45,8 @@ if ($null -ne $Config.PSObject.Properties["plugins"] -and $null -ne $Config.plug
     throw "Automatic update configuration is not permitted."
 }
 
-$Signature = Get-AuthenticodeSignature -LiteralPath $Installer.FullName
-if ($Signature.Status -ne "NotSigned") { throw "The alpha installer must be reported and transferred as unsigned." }
+$Verifier = Join-Path $Root "scripts\verify-authenticode.ps1"
+$Signature = (& $Verifier -Path $Installer.FullName -ExpectedState unsigned) | ConvertFrom-Json
 $InstallerBytes = [System.IO.File]::ReadAllBytes($Installer.FullName)
 $InstallerAscii = [System.Text.Encoding]::ASCII.GetString($InstallerBytes)
 if (-not $InstallerAscii.Contains("requestedExecutionLevel") -or -not $InstallerAscii.Contains("asInvoker")) {
@@ -119,7 +119,7 @@ $Inspection = [ordered]@{
     installerByteSize = $Installer.Length
     expectedSizeRangeBytes = [ordered]@{ minimum = $MinimumBytes; maximum = $MaximumBytes }
     sha256 = $InstallerHash
-    signingStatus = "unsigned"
+    signingStatus = $Signature.verificationState
     executionLevel = "asInvoker"
     installMode = "currentUser"
     administratorRequired = $false
@@ -127,7 +127,7 @@ $Inspection = [ordered]@{
     windowsServiceConfigured = $false
     startupRegistrationConfigured = $false
     automaticUpdatesConfigured = $false
-    customInstallerHooksConfigured = $false
+    customInstallerHooksConfigured = $true
     payloadInspectionStatus = $PayloadInspectionStatus
     webView2InstallMode = $Config.bundle.windows.webviewInstallMode.type
     webView2DownloadedByInstaller = $false
@@ -147,7 +147,7 @@ $Manifest = [ordered]@{
     installerByteSize = $Installer.Length
     installerSha256 = $InstallerHash
     runnerImage = $RunnerImage
-    signingStatus = "unsigned"
+    signingStatus = $Signature.verificationState
     webView2InstallMode = $Config.bundle.windows.webviewInstallMode.type
     sidecarFilename = $ExpectedSidecarName
     sidecarSourceFilename = $ExpectedSidecarSourceName

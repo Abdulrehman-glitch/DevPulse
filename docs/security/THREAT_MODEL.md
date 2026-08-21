@@ -32,6 +32,6 @@ The parent tracks the exact child process. Packaged Windows builds place it in a
 
 - compromise of the Windows account, administrator, kernel, or DevPulse process;
 - protection against memory inspection by an equivalent-privilege process;
-- code signing and updater authenticity, which are not yet implemented;
-- confidential vulnerability intake until GitHub private vulnerability reporting is enabled at public launch;
+- production code signing and updater authenticity are not activated; Authenticode verification and an operational signing strategy exist, but `v0.3.0` remains explicitly unsigned;
+- availability or compromise of GitHub's enabled private vulnerability-reporting service;
 - claims beyond the explicitly tested Windows x64 compatibility matrix.

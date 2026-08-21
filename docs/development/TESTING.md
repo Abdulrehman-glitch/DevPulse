@@ -36,9 +36,12 @@ cargo check --release --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 cargo clippy --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 npm run tauri:check
+npm run workflows:check
 ```
 
 Use an isolated `cargo-audit` binary and the RustSec database. Review target-excluded informational warnings separately from packages in the supported Windows graph.
+
+The manual `Windows compatibility` workflow builds and executes the authentic installer on the standard GitHub-hosted `windows-2022` and `windows-2025` x64 images. It also exercises WebView2 detection, spaces/non-ASCII paths, two process cultures, installed sidecar readiness, clean uninstall/reinstall, and the ephemeral TEST-certificate signing verifier. It uploads no workflow artifact. See [WINDOWS_COMPATIBILITY.md](WINDOWS_COMPATIBILITY.md).
 
 ## Publication checks
 

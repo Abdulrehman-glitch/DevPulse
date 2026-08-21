@@ -13,13 +13,14 @@ $RustDesktopPath = Join-Path $Root "apps\desktop\src-tauri\src\lib.rs"
 $Harness = Get-Content -LiteralPath $HarnessPath -Raw
 $RustDesktop = Get-Content -LiteralPath $RustDesktopPath -Raw
 
-$ExpectedWorkflowNames = @("ci.yml", "release-qa.yml")
+$ExpectedWorkflowNames = @("ci.yml", "release-qa.yml", "windows-compatibility.yml")
 $ActualWorkflowNames = @($WorkflowPaths | Select-Object -ExpandProperty Name | Sort-Object)
 if (@(Compare-Object $ExpectedWorkflowNames $ActualWorkflowNames).Count -ne 0) {
-    throw "The public repository must contain exactly the reviewed CI and release-QA workflows."
+    throw "The public repository workflow inventory changed without harness review."
 }
 $WorkflowText = @($WorkflowPaths | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join "`n"
 $ReleaseWorkflow = Get-Content -LiteralPath (Join-Path $WorkflowDirectory "release-qa.yml") -Raw
+$CompatibilityWorkflow = Get-Content -LiteralPath (Join-Path $WorkflowDirectory "windows-compatibility.yml") -Raw
 if ($WorkflowText -match '(?m)^\s*pull_request_target\s*:') {
     throw "Public workflows must not use pull_request_target."
 }
@@ -27,6 +28,14 @@ if (-not $ReleaseWorkflow.Contains("workflow_dispatch:")) { throw "Release QA lo
 if (-not $ReleaseWorkflow.Contains("runs-on: windows-2025")) { throw "Release QA lost its standard Windows runner." }
 if ($ReleaseWorkflow -match '(?m)^\s{2}(?:push|pull_request|schedule)\s*:') {
     throw "Release QA must not run on push, pull request, or a schedule."
+}
+if (-not $CompatibilityWorkflow.Contains("workflow_dispatch:")) { throw "Windows compatibility lost its manual-only trigger." }
+if (-not $CompatibilityWorkflow.Contains("windows-2022") -or -not $CompatibilityWorkflow.Contains("windows-2025")) {
+    throw "Windows compatibility lost its bounded standard-runner matrix."
+}
+if ($CompatibilityWorkflow -match 'actions/upload-artifact@') { throw "Windows compatibility must not persist workflow artifacts." }
+if ($CompatibilityWorkflow -match '(?m)^\s{2}(?:push|pull_request|schedule)\s*:') {
+    throw "Windows compatibility must not run on push, pull request, or a schedule."
 }
 
 function Assert-Contains([string]$Text, [string]$Needle, [string]$Message) {
@@ -74,6 +83,7 @@ Assert-Contains $Harness 'creationUtc' "Installed QA does not record process cre
 Assert-Contains $Harness 'Test-LifecycleChildSnapshotRelationship' "Installed QA does not reject stale parent PID relationships."
 Assert-Contains $Harness 'UseShellExecute = $false' "Installed QA lost its child-only environment launch boundary."
 Assert-Contains $Harness 'DEVPULSE_DATA_DIR = $QaRoot' "The canonical QA root is not propagated to the installed child."
+Assert-Contains $Harness '$QaRootLeaf = "DevPulse-QA-installed"' "The installed QA root can no longer exercise safe alternate path names."
 Assert-Contains $Harness 'APPDATA = $QaRoamingAppData' "Roaming AppData is not isolated for the installed child."
 Assert-Contains $Harness 'LOCALAPPDATA = $QaLocalAppData' "Local AppData is not isolated for the installed child."
 Assert-Contains $Harness 'Invoke-QaGateRefusalTests' "Partial QA launches are no longer tested for safe refusal."

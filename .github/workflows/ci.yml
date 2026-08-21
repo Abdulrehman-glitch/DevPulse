@@ -44,6 +44,7 @@ jobs:
           npm run docs:check
           npm run json:check
           npm run tauri:check
+          npm run workflows:check
 
       - name: Audit npm dependency graph
         run: |
