@@ -1,0 +1,161 @@
+name: Windows compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Full 40-character commit SHA to qualify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-compatibility-${{ inputs.release_commit }}
+  cancel-in-progress: false
+
+jobs:
+  compatibility:
+    name: ${{ matrix.os }} / ${{ matrix.culture }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            culture: en-GB
+          - os: windows-2025
+            culture: tr-TR
+    env:
+      CARGO_TERM_COLOR: always
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONUTF8: "1"
+      SOURCE_SUBDIRECTORY: compatibility source 文档
+    steps:
+      - name: Check out exact selected commit into a non-ASCII path
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.release_commit }}
+          path: compatibility source 文档
+          persist-credentials: false
+
+      - name: Verify immutable dispatch identity
+        shell: pwsh
+        env:
+          REQUESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          if ($env:REQUESTED_SHA -notmatch '^[0-9a-f]{40}$') { throw "release_commit must be a full lowercase Git SHA." }
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
+          if ((git rev-parse HEAD).Trim() -ne $env:REQUESTED_SHA) { throw "Checked-out commit does not match release_commit." }
+          if ($env:GITHUB_SHA -ne $env:REQUESTED_SHA) { throw "Dispatch ref does not identify the selected release commit." }
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: compatibility source 文档/.node-version
+
+      - name: Set up pinned Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version-file: compatibility source 文档/.python-version
+
+      - name: Validate runner, locale, paths, permissions, and WebView2 prerequisite
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
+          .\scripts\test-windows-compatibility-preflight.ps1 `
+            -Culture '${{ matrix.culture }}' `
+            -OutputPath (Join-Path $env:RUNNER_TEMP 'windows-compatibility-preflight.json')
+
+      - name: Prepare locked dependencies and policy checks
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
+          npm ci --ignore-scripts=false --no-audit --no-fund
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install --no-deps --requirement requirements-ci.lock
+          .\.venv\Scripts\python.exe -m pip check
+          rustup show active-toolchain
+          npm run versions:check
+          npm run workflows:check
+          .\scripts\test-installed-installer-qa-harness.ps1
+
+      - name: Build authentic sidecar and NSIS installer
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
+          npm run sidecar:build
+          npm run sidecar:test
+          npm --workspace @devpulse/desktop run bundle:nsis
+
+      - name: Exercise ephemeral TEST signing verification
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
+          .\scripts\test-authenticode-verification.ps1 `
+            -UnsignedExecutable .\apps\desktop\src-tauri\target\release\devpulse-desktop.exe `
+            -OutputPath (Join-Path $env:RUNNER_TEMP 'authenticode-verification.json')
+
+      - name: Inspect the unsigned compatibility installer
+        shell: pwsh
+        env:
+          TESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
+          .\scripts\inspect-installer.ps1 `
+            -OutputDirectory (Join-Path $env:RUNNER_TEMP 'devpulse-compatibility-build') `
+            -CommitSha $env:TESTED_SHA `
+            -SourceReference $env:TESTED_SHA `
+            -RunnerImage "$env:ImageOS $env:ImageVersion"
+
+      - name: Install, smoke, uninstall, reinstall, and clean up
+        shell: pwsh
+        env:
+          DEVPULSE_DISPOSABLE_RUNNER: github-hosted
+          DEVPULSE_TESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          foreach ($Name in @('GITHUB_TOKEN', 'GH_TOKEN', 'ACTIONS_RUNTIME_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_URL')) {
+            Remove-Item "Env:$Name" -ErrorAction SilentlyContinue
+          }
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
+          .\scripts\run-installed-installer-qa.ps1 `
+            -ArtifactDirectory (Join-Path $env:RUNNER_TEMP 'devpulse-compatibility-build') `
+            -ReportDirectory (Join-Path $env:RUNNER_TEMP 'devpulse-compatibility-reports') `
+            -QaRootLeaf 'DevPulse QA installed 文档 ${{ matrix.culture }}'
+
+      - name: Write concise compatibility summary
+        if: always()
+        shell: pwsh
+        env:
+          TESTED_SHA: ${{ inputs.release_commit }}
+        run: |
+          $ManifestPath = Join-Path $env:RUNNER_TEMP 'devpulse-compatibility-build\build-manifest.json'
+          $PreflightPath = Join-Path $env:RUNNER_TEMP 'windows-compatibility-preflight.json'
+          $SigningPath = Join-Path $env:RUNNER_TEMP 'authenticode-verification.json'
+          $InstallerEvidence = if (Test-Path -LiteralPath $ManifestPath) {
+            $Manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+            "- Installer: ``$($Manifest.installerFilename)`` ($($Manifest.installerByteSize) bytes; SHA-256 ``$($Manifest.installerSha256)``)"
+          } else { '- Installer: unavailable because an earlier step failed' }
+          $PreflightEvidence = if (Test-Path -LiteralPath $PreflightPath) {
+            $Preflight = Get-Content -LiteralPath $PreflightPath -Raw | ConvertFrom-Json
+            "- Environment: ``$($Preflight.osCaption)`` ``$($Preflight.osVersion)``; WebView2 ``$($Preflight.webView2Version)``"
+          } else { '- Environment: preflight evidence unavailable because an earlier step failed' }
+          $SigningEvidence = if (Test-Path -LiteralPath $SigningPath) {
+            $Signing = Get-Content -LiteralPath $SigningPath -Raw | ConvertFrom-Json
+            "- Signature verifier: unsigned=$($Signing.cases.unsigned), TEST-signed=$($Signing.cases.validEphemeralTestSignature), tampered=$($Signing.cases.tampered), untrusted=$($Signing.cases.untrusted)"
+          } else { '- Signature verifier: evidence unavailable because an earlier step failed' }
+          @"
+          ## DevPulse Windows compatibility
+
+          - Commit: ``$env:TESTED_SHA``
+          - Runner: ``${{ matrix.os }}`` / ``$env:ImageVersion`` (standard GitHub-hosted x64)
+          - Locale exercise: ``${{ matrix.culture }}``
+          - Source and QA data paths: spaces and non-ASCII characters
+          - Result: **${{ job.status }}**
+          $PreflightEvidence
+          $InstallerEvidence
+          $SigningEvidence
+          - Persisted workflow artifacts: none
+          "@ >> $env:GITHUB_STEP_SUMMARY

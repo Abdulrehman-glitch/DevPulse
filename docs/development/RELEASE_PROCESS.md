@@ -17,11 +17,13 @@ For `0.3.0-alpha.1`, Windows resources that require four numeric fields use `0.3
 1. Start from reviewed `main` with a clean worktree and locked toolchains.
 2. Install dependencies from lockfiles and run every command in [TESTING.md](TESTING.md).
 3. Regenerate asset hashes, dependency licences, notices, vulnerability evidence, API contract, and any approved SBOM.
-4. Build the sidecar and production application. Store local executables, raw logs, and machine-specific reports only in ignored output.
-5. Inspect the installer without executing it. Record hashes, unsigned/signing state, bundled runtime, notices, and source commit.
-6. Dispatch `.github/workflows/release-qa.yml` with the full 40-character intended release commit. The workflow and selected commit must resolve to the same SHA.
-7. Require authentic NSIS install, authenticated smoke, uninstall, reinstall, final cleanup, runtime-only CycloneDX SBOM generation, checksum creation, and installer attestation on the standard GitHub-hosted Windows runner.
-8. Review the complete history and candidate assets for secrets, personal identity, private paths, disputed media, workflow policy, tags, and prohibited artifacts.
+4. Review the [Rust advisory disposition](../legal/RUST_ADVISORY_DISPOSITION.md), run the workflow storage policy check, and verify the release's [code-signing state](../security/WINDOWS_CODE_SIGNING.md) truthfully.
+5. Build the sidecar and production application. Store local executables, raw logs, and machine-specific reports only in ignored output.
+6. Inspect the installer without executing it. Record hashes, unsigned/signing state, bundled runtime, notices, and source commit.
+7. For a compatibility-changing release, run the manual two-image [Windows compatibility matrix](WINDOWS_COMPATIBILITY.md) for a reviewed `main` SHA. It is artifact-free and does not replace final Release QA.
+8. Dispatch `.github/workflows/release-qa.yml` with the full 40-character intended release commit. The workflow and selected commit must resolve to the same SHA.
+9. Require authentic NSIS install, authenticated smoke, uninstall, reinstall, final cleanup, runtime-only CycloneDX SBOM generation, checksum creation, and installer attestation on the standard GitHub-hosted Windows runner.
+10. Review the complete history and candidate assets for secrets, personal identity, private paths, disputed media, workflow policy, tags, and prohibited artifacts.
 
 ## Tag and publish
 

@@ -49,6 +49,7 @@ try {
 
     Invoke-LocalStep "Artificial performance matrix" { npm run performance:matrix }
     Invoke-LocalStep "Tauri configuration" { npm run tauri:check }
+    Invoke-LocalStep "Workflow storage and runner policy" { npm run workflows:check }
     Invoke-LocalStep "JSON validation" { npm run json:check }
     Invoke-LocalStep "Markdown links" { npm run docs:check }
     Invoke-LocalStep "Uninstall-entry regression tests" { .\scripts\test-uninstall-entry-filter.ps1 }

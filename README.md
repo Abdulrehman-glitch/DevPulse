@@ -10,7 +10,7 @@ This Git history starts with a curated pre-public baseline. Historical developme
 
 ## Supported platform
 
-The supported target is 64-bit Windows. The current build uses Tauri 2, the Microsoft WebView2 runtime already present on supported Windows systems, and a packaged CPython local-core sidecar. Release installers must pass install, smoke, uninstall, reinstall, and residue checks on a disposable GitHub-hosted Windows runner. macOS and Linux are not currently supported claims.
+The supported target is Windows x64 with the Microsoft WebView2 Evergreen Runtime already present. The current build uses Tauri 2 and a packaged CPython local-core sidecar. Release installers must pass build, install, authenticated smoke, uninstall, reinstall, and residue checks on disposable standard GitHub-hosted `windows-2022` and `windows-2025` runners. This bounded server-runner matrix does not imply coverage of every consumer edition, enterprise policy, locale, DPI setting, or hardware configuration. macOS, Linux, Arm, and 32-bit Windows are not supported claims. See the [Windows compatibility contract](docs/development/WINDOWS_COMPATIBILITY.md).
 
 ## Capabilities
 
@@ -30,9 +30,9 @@ See [the system overview](docs/architecture/SYSTEM_OVERVIEW.md), [startup protoc
 
 ## Privacy and limitations
 
-DevPulse is local-first and does not include a hosted SaaS implementation. Project information is processed locally. Diagnostic exports can still contain project names or paths and must be reviewed before sharing. The scanner is intended to be read-only, but hostile filesystem races and a compromised same-user process are outside its security boundary.
+DevPulse is local-first and does not include a hosted SaaS implementation. Project information is processed locally. Safe diagnostic exports omit raw project paths, source contents, credentials, URLs, and free-form logs, but should still be reviewed before sharing. The scanner is intended to be read-only, but hostile filesystem races and a compromised same-user process are outside its security boundary.
 
-Current limitations include unsigned Windows artifacts, no updater, a single maintainer, an interim visual identity, and a Windows-only support claim. Release artifacts are alpha quality and require a preinstalled WebView2 runtime.
+Current limitations include unsigned Windows artifacts, no updater, a single maintainer, an interim visual identity, and a bounded Windows-only support claim. Release artifacts are alpha quality and require a preinstalled WebView2 runtime. The unsigned status and future key-custody design are explicit in the [Windows code-signing strategy](docs/security/WINDOWS_CODE_SIGNING.md).
 
 ## Development
 

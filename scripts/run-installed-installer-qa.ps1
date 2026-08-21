@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$ArtifactDirectory,
-    [Parameter(Mandatory = $true)][string]$ReportDirectory
+    [Parameter(Mandatory = $true)][string]$ReportDirectory,
+    [string]$QaRootLeaf = "DevPulse-QA-installed"
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,7 +44,20 @@ $Version = "0.3.0-alpha.1"
 $ExpectedInstallDirectory = Join-Path $env:LOCALAPPDATA "DevPulse"
 $ExpectedStartMenuDirectory = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\DevPulse"
 $ExpectedDesktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "DevPulse.lnk"
-$QaRoot = Join-Path $env:RUNNER_TEMP "DevPulse-QA-installed"
+if (
+    [string]::IsNullOrWhiteSpace($QaRootLeaf) -or
+    $QaRootLeaf -in @(".", "..") -or
+    $QaRootLeaf.IndexOfAny([IO.Path]::GetInvalidFileNameChars()) -ge 0 -or
+    $QaRootLeaf.Contains('\') -or
+    $QaRootLeaf.Contains('/')
+) {
+    throw "QA root leaf must be one safe directory name beneath RUNNER_TEMP."
+}
+$QaRoot = Join-Path $env:RUNNER_TEMP $QaRootLeaf
+$CanonicalRunnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
+if ([IO.Path]::GetFullPath($QaRoot) -notlike "$CanonicalRunnerTemp\*") {
+    throw "QA root escaped RUNNER_TEMP."
+}
 $QaRoamingAppData = Join-Path $QaRoot "process-env\roaming"
 $QaLocalAppData = Join-Path $QaRoot "process-env\local"
 $QaWebView2Data = Join-Path $QaRoot "webview2"
