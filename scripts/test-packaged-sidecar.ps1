@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$QaRoot = Join-Path $Root ".qa-runtime\DevPulse-QA-sidecar-smoke"
+$QaRoot = Join-Path $Root ".qa-runtime\DevPulse-QA-sidecar smoke 文档"
 $Expected = [System.IO.Path]::GetFullPath($QaRoot)
 if ($Expected -notlike "$Root\.qa-runtime\*") { throw "Unsafe sidecar smoke-test root." }
 New-Item -ItemType Directory -Force -Path $QaRoot | Out-Null
@@ -14,6 +14,10 @@ $QaTemp = Join-Path $QaRoot "process-env\temp"
 New-Item -ItemType Directory -Force -Path $QaRoamingAppData, $QaLocalAppData, $QaHome, $QaTemp | Out-Null
 $Candidates = @(Get-ChildItem -LiteralPath (Join-Path $Root "apps\desktop\src-tauri\binaries") -File -Filter "*.exe")
 if ($Candidates.Count -ne 1) { throw "Expected exactly one packaged sidecar binary." }
+$FixtureDirectory = Join-Path $QaRoot "packaged fixture 文档"
+New-Item -ItemType Directory -Force -Path $FixtureDirectory | Out-Null
+$FixtureExecutable = Join-Path $FixtureDirectory "devpulse local core.exe"
+Copy-Item -LiteralPath $Candidates[0].FullName -Destination $FixtureExecutable -Force
 
 $Token = [Guid]::NewGuid().ToString("N") + [Guid]::NewGuid().ToString("N")
 $Launch = @{
@@ -21,7 +25,7 @@ $Launch = @{
     token = $Token
 } | ConvertTo-Json -Compress
 $StartInfo = [System.Diagnostics.ProcessStartInfo]::new()
-$StartInfo.FileName = $Candidates[0].FullName
+$StartInfo.FileName = $FixtureExecutable
 $StartInfo.WorkingDirectory = $Root
 $StartInfo.UseShellExecute = $false
 $StartInfo.CreateNoWindow = $true
@@ -66,7 +70,21 @@ try {
     }
     $ReadyLine = $ReadyRead.Result
     if ([string]::IsNullOrWhiteSpace($ReadyLine) -or $ReadyLine.Length -gt 512) {
-        throw "Packaged sidecar returned an invalid readiness frame."
+        $FailureDetail = "readiness output was empty or exceeded its 512-character bound"
+        if ($Process.HasExited) {
+            $Process.WaitForExit()
+            $Diagnostics = $ErrorRead.Result
+            if ($Diagnostics.Contains($Token)) {
+                throw "Packaged sidecar failure diagnostics exposed the token."
+            }
+            $Diagnostics = [regex]::Replace($Diagnostics, '(?i)[0-9a-f]{64}', '[REDACTED]')
+            $Diagnostics = [regex]::Replace($Diagnostics, '(?i)(token|secret|password)\s*[:=]\s*\S+', '$1=[REDACTED]')
+            $Diagnostics = ($Diagnostics -replace '[\r\n]+', ' ').Trim()
+            if ($Diagnostics.Length -gt 1000) { $Diagnostics = $Diagnostics.Substring(0, 1000) }
+            $FailureDetail = "process exited with code $($Process.ExitCode)"
+            if ($Diagnostics) { $FailureDetail += "; safe stderr: $Diagnostics" }
+        }
+        throw "Packaged sidecar returned an invalid readiness frame ($FailureDetail)."
     }
     if ($ReadyLine.Contains($Token) -or $ReadyLine -match '(?i)token') {
         throw "Packaged sidecar readiness exposed the token."

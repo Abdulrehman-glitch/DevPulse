@@ -46,6 +46,8 @@ jobs:
         env:
           REQUESTED_SHA: ${{ inputs.release_commit }}
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           if ($env:REQUESTED_SHA -notmatch '^[0-9a-f]{40}$') { throw "release_commit must be a full lowercase Git SHA." }
           Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
           if ((git rev-parse HEAD).Trim() -ne $env:REQUESTED_SHA) { throw "Checked-out commit does not match release_commit." }
@@ -64,6 +66,8 @@ jobs:
       - name: Validate runner, locale, paths, permissions, and WebView2 prerequisite
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
           .\scripts\test-windows-compatibility-preflight.ps1 `
             -Culture '${{ matrix.culture }}' `
@@ -72,6 +76,8 @@ jobs:
       - name: Prepare locked dependencies and policy checks
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
           npm ci --ignore-scripts=false --no-audit --no-fund
           python -m venv .venv
@@ -85,6 +91,8 @@ jobs:
       - name: Build authentic sidecar and NSIS installer
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
           npm run sidecar:build
           npm run sidecar:test
@@ -92,7 +100,10 @@ jobs:
 
       - name: Exercise ephemeral TEST signing verification
         shell: pwsh
+        timeout-minutes: 5
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
           .\scripts\test-authenticode-verification.ps1 `
             -UnsignedExecutable .\apps\desktop\src-tauri\target\release\devpulse-desktop.exe `
@@ -103,6 +114,8 @@ jobs:
         env:
           TESTED_SHA: ${{ inputs.release_commit }}
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           Set-Location (Join-Path $env:GITHUB_WORKSPACE $env:SOURCE_SUBDIRECTORY)
           .\scripts\inspect-installer.ps1 `
             -OutputDirectory (Join-Path $env:RUNNER_TEMP 'devpulse-compatibility-build') `

@@ -17,7 +17,65 @@ if (-not (Test-Path -LiteralPath $UnsignedExecutable -PathType Leaf)) {
     throw "The unsigned executable fixture is missing."
 }
 
+function Find-SignTool {
+    $WindowsKits = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Windows Kits\10\bin"
+    $Candidates = @(
+        if (Test-Path -LiteralPath $WindowsKits -PathType Container) {
+            Get-ChildItem -LiteralPath $WindowsKits -Recurse -File -Filter "signtool.exe" |
+                Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+                Sort-Object FullName -Descending
+        }
+    )
+    if ($Candidates.Count -eq 0) { throw "The standard runner did not provide the Windows SDK signing tool." }
+    return $Candidates[0].FullName
+}
+
+function Invoke-BoundedTool {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [int]$TimeoutSeconds = 30
+    )
+
+    $StartInfo = [Diagnostics.ProcessStartInfo]::new()
+    $StartInfo.FileName = $FilePath
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.CreateNoWindow = $true
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $true
+    foreach ($Argument in $Arguments) { [void]$StartInfo.ArgumentList.Add($Argument) }
+    $Process = [Diagnostics.Process]::new()
+    $Process.StartInfo = $StartInfo
+    $Started = $false
+    try {
+        if (-not $Process.Start()) { throw "A signing-test child process could not start." }
+        $Started = $true
+        $OutputRead = $Process.StandardOutput.ReadToEndAsync()
+        $ErrorRead = $Process.StandardError.ReadToEndAsync()
+        if (-not $Process.WaitForExit($TimeoutSeconds * 1000)) {
+            $Process.Kill($true)
+            $Process.WaitForExit()
+            throw "A signing-test child process exceeded its $TimeoutSeconds-second bound."
+        }
+        $Process.WaitForExit()
+        [void]$OutputRead.Result
+        [void]$ErrorRead.Result
+        if ($Process.ExitCode -ne 0) {
+            throw "A signing-test child process failed with exit code $($Process.ExitCode)."
+        }
+    }
+    finally {
+        if ($Started -and -not $Process.HasExited) {
+            $Process.Kill($true)
+            $Process.WaitForExit()
+        }
+        $Process.Dispose()
+    }
+}
+
 $Verifier = Join-Path $PSScriptRoot "verify-authenticode.ps1"
+$SignTool = Find-SignTool
+$CertUtil = Join-Path $env:SystemRoot "System32\certutil.exe"
 $TestRoot = Join-Path $env:RUNNER_TEMP "DevPulse-Authenticode-ephemeral-TEST-$PID"
 $RunnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')
 $CanonicalTestRoot = [IO.Path]::GetFullPath($TestRoot)
@@ -25,8 +83,8 @@ if ($CanonicalTestRoot -notlike "$RunnerTemp\*") { throw "Ephemeral signing test
 
 $Certificate = $null
 $UntrustedCertificate = $null
-$ImportedRoot = $null
-$ImportedPublisher = $null
+$TrustedRootInstalled = $false
+$TrustedPublisherInstalled = $false
 try {
     New-Item -ItemType Directory -Force -Path $TestRoot | Out-Null
     $UnsignedCopy = Join-Path $TestRoot "unsigned-fixture.exe"
@@ -36,24 +94,33 @@ try {
     $PublicCertificate = Join-Path $TestRoot "ephemeral-public-TEST-only.cer"
     Copy-Item -LiteralPath $UnsignedExecutable -Destination $UnsignedCopy
 
+    Write-Host "Authenticode TEST phase 1/6: classify unsigned fixture."
     $Unsigned = (& $Verifier -Path $UnsignedCopy -ExpectedState unsigned) | ConvertFrom-Json
+
+    Write-Host "Authenticode TEST phase 2/6: create non-exportable ephemeral certificate."
     $Certificate = New-SelfSignedCertificate `
         -Type CodeSigningCert `
         -Subject "CN=DevPulse Ephemeral TEST Certificate Only" `
         -CertStoreLocation "Cert:\CurrentUser\My" `
+        -KeyAlgorithm RSA `
+        -KeyLength 2048 `
+        -HashAlgorithm SHA256 `
         -KeyExportPolicy NonExportable `
         -NotAfter (Get-Date).AddDays(1)
     Export-Certificate -Cert $Certificate -FilePath $PublicCertificate -Force | Out-Null
-    $ImportedRoot = Import-Certificate -FilePath $PublicCertificate -CertStoreLocation "Cert:\CurrentUser\Root"
-    $ImportedPublisher = Import-Certificate -FilePath $PublicCertificate -CertStoreLocation "Cert:\CurrentUser\TrustedPublisher"
+    Invoke-BoundedTool -FilePath $CertUtil -Arguments @("-user", "-f", "-addstore", "Root", $PublicCertificate)
+    $TrustedRootInstalled = $true
+    Invoke-BoundedTool -FilePath $CertUtil -Arguments @("-user", "-f", "-addstore", "TrustedPublisher", $PublicCertificate)
+    $TrustedPublisherInstalled = $true
 
+    Write-Host "Authenticode TEST phase 3/6: sign and validate trusted TEST fixture."
     Copy-Item -LiteralPath $UnsignedExecutable -Destination $SignedCopy
-    $SigningResult = Set-AuthenticodeSignature -LiteralPath $SignedCopy -Certificate $Certificate -HashAlgorithm SHA256
-    if ($SigningResult.Status -ne "Valid") {
-        throw "The ephemeral TEST signature could not be validated on the disposable runner."
-    }
+    Invoke-BoundedTool -FilePath $SignTool -Arguments @(
+        "sign", "/fd", "SHA256", "/sha1", $Certificate.Thumbprint, "/s", "My", $SignedCopy
+    )
     $Valid = (& $Verifier -Path $SignedCopy -ExpectedState valid) | ConvertFrom-Json
 
+    Write-Host "Authenticode TEST phase 4/6: detect a tampered TEST fixture."
     Copy-Item -LiteralPath $SignedCopy -Destination $TamperedCopy
     $Bytes = [IO.File]::ReadAllBytes($TamperedCopy)
     if ($Bytes.Length -lt 4097) { throw "Executable fixture is too small for a bounded tamper test." }
@@ -61,23 +128,27 @@ try {
     [IO.File]::WriteAllBytes($TamperedCopy, $Bytes)
     $Tampered = (& $Verifier -Path $TamperedCopy -ExpectedState invalid-tampered) | ConvertFrom-Json
 
-    Remove-Item -LiteralPath "Cert:\CurrentUser\TrustedPublisher\$($ImportedPublisher.Thumbprint)" -ErrorAction SilentlyContinue
-    $ImportedPublisher = $null
-    Remove-Item -LiteralPath "Cert:\CurrentUser\Root\$($ImportedRoot.Thumbprint)" -ErrorAction SilentlyContinue
-    $ImportedRoot = $null
+    Write-Host "Authenticode TEST phase 5/6: remove temporary trust and classify untrusted signature."
+    Invoke-BoundedTool -FilePath $CertUtil -Arguments @("-user", "-delstore", "TrustedPublisher", $Certificate.Thumbprint)
+    $TrustedPublisherInstalled = $false
+    Invoke-BoundedTool -FilePath $CertUtil -Arguments @("-user", "-delstore", "Root", $Certificate.Thumbprint)
+    $TrustedRootInstalled = $false
     $UntrustedCertificate = New-SelfSignedCertificate `
         -Type CodeSigningCert `
         -Subject "CN=DevPulse Untrusted Ephemeral TEST Certificate Only" `
         -CertStoreLocation "Cert:\CurrentUser\My" `
+        -KeyAlgorithm RSA `
+        -KeyLength 2048 `
+        -HashAlgorithm SHA256 `
         -KeyExportPolicy NonExportable `
         -NotAfter (Get-Date).AddDays(1)
     Copy-Item -LiteralPath $UnsignedExecutable -Destination $UntrustedCopy
-    $UntrustedSigningResult = Set-AuthenticodeSignature -LiteralPath $UntrustedCopy -Certificate $UntrustedCertificate -HashAlgorithm SHA256
-    if ($UntrustedSigningResult.Status -eq "NotSigned" -or $null -eq $UntrustedSigningResult.SignerCertificate) {
-        throw "The untrusted TEST signature was not embedded."
-    }
+    Invoke-BoundedTool -FilePath $SignTool -Arguments @(
+        "sign", "/fd", "SHA256", "/sha1", $UntrustedCertificate.Thumbprint, "/s", "My", $UntrustedCopy
+    )
     $Untrusted = (& $Verifier -Path $UntrustedCopy -ExpectedState untrusted) | ConvertFrom-Json
 
+    Write-Host "Authenticode TEST phase 6/6: record non-production verification evidence."
     [ordered]@{
         schemaVersion = 1
         status = "passed"
@@ -96,11 +167,11 @@ try {
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $OutputPath -Encoding utf8
 }
 finally {
-    if ($null -ne $ImportedPublisher) {
-        Remove-Item -LiteralPath "Cert:\CurrentUser\TrustedPublisher\$($ImportedPublisher.Thumbprint)" -ErrorAction SilentlyContinue
+    if ($TrustedPublisherInstalled -and $null -ne $Certificate) {
+        try { Invoke-BoundedTool -FilePath $CertUtil -Arguments @("-user", "-delstore", "TrustedPublisher", $Certificate.Thumbprint) } catch { Write-Warning "Disposable TEST publisher cleanup did not complete before runner disposal." }
     }
-    if ($null -ne $ImportedRoot) {
-        Remove-Item -LiteralPath "Cert:\CurrentUser\Root\$($ImportedRoot.Thumbprint)" -ErrorAction SilentlyContinue
+    if ($TrustedRootInstalled -and $null -ne $Certificate) {
+        try { Invoke-BoundedTool -FilePath $CertUtil -Arguments @("-user", "-delstore", "Root", $Certificate.Thumbprint) } catch { Write-Warning "Disposable TEST root cleanup did not complete before runner disposal." }
     }
     if ($null -ne $Certificate) {
         Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($Certificate.Thumbprint)" -ErrorAction SilentlyContinue

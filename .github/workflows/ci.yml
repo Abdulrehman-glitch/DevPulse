@@ -72,6 +72,8 @@ jobs:
       - name: Install isolated locked Python dependencies
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           python -m venv .venv
           .\.venv\Scripts\python.exe -m pip install --no-deps --requirement requirements-ci.lock
           .\.venv\Scripts\python.exe -m pip check
@@ -79,6 +81,8 @@ jobs:
       - name: Validate Python
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           .\.venv\Scripts\python.exe -m ruff format --check .
           .\.venv\Scripts\python.exe -m ruff check .
           .\.venv\Scripts\python.exe -m pytest
@@ -106,6 +110,8 @@ jobs:
       - name: Build authentic local-core sidecar
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           python -m venv .venv
           .\.venv\Scripts\python.exe -m pip install --no-deps --requirement requirements-ci.lock
           .\scripts\build-sidecar.ps1
@@ -117,6 +123,8 @@ jobs:
       - name: Validate Rust and Tauri shell
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           cargo fmt --all --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
           cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
           cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
