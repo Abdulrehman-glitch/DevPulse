@@ -20,6 +20,8 @@
 
 Missing, late, malformed, oversized, weak, or version-mismatched launch data exits without starting the server. Invalid or late readiness data causes the parent to terminate its owned child and report a non-secret error category. The legacy `--token` and `--handshake-file` options are rejected before argument parsing so their supplied values are not echoed.
 
+Before readiness, the child may write exactly one bounded reason marker to stderr: `DEVPULSE_STARTUP_ERROR` followed by an allow-listed code for launch protocol, QA path boundary, QA failure injection, or access-credential validation. Unknown internal inputs collapse to `startup_validation`; exception text, paths, launch frames, and credential values are never included.
+
 Packaged builds use a console-subsystem PyInstaller sidecar because windowed mode removes Python standard streams. Tauri starts that process with `CREATE_NO_WINDOW` and anonymous pipes, so no console window is shown. The parent retains the child handle and assigns the packaged process to a kill-on-close Windows Job Object.
 
 No handshake file is created. Readiness is non-secret and remains on the inherited stdout channel. Application logs use stderr or the configured local log file after the single startup frame.

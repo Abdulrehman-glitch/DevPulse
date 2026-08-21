@@ -7,6 +7,13 @@ $DisposableRunner = (
     $env:RUNNER_ENVIRONMENT -eq "github-hosted" -and
     $env:RUNNER_OS -eq "Windows"
 )
+if (
+    $env:GITHUB_ACTIONS -eq "true" -and
+    $env:RUNNER_OS -eq "Windows" -and
+    -not $DisposableRunner
+) {
+    throw "GitHub Actions sidecar QA requires a positively identified GitHub-hosted runner."
+}
 $QaRoot = if ($DisposableRunner) {
     $SystemDriveRoot = [IO.Path]::GetPathRoot($env:SystemRoot)
     Join-Path $SystemDriveRoot "DevPulse-QA-sidecar smoke 文档-$PID"
@@ -25,6 +32,7 @@ if ($DisposableRunner) {
 } elseif ($Expected -notlike "$Root\.qa-runtime\*") {
     throw "Unsafe local sidecar smoke-test root."
 }
+Write-Host "Packaged sidecar QA boundary: $(if ($DisposableRunner) { 'disposable-system-drive' } else { 'local-repository-sandbox' })."
 New-Item -ItemType Directory -Force -Path $QaRoot | Out-Null
 $QaRoamingAppData = Join-Path $QaRoot "process-env\roaming"
 $QaLocalAppData = Join-Path $QaRoot "process-env\local"

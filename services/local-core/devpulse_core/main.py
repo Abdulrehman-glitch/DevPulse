@@ -126,23 +126,36 @@ def resolve_access_token(provided: str | None) -> str:
     return provided
 
 
+def stop_startup(reason_code: str) -> None:
+    """Fail closed with one bounded, non-sensitive machine-readable reason."""
+    allowed = {
+        "access_credential",
+        "launch_protocol",
+        "qa_failure_injection",
+        "qa_path_boundary",
+    }
+    safe_code = reason_code if reason_code in allowed else "startup_validation"
+    print(f"DEVPULSE_STARTUP_ERROR {safe_code}", file=sys.stderr, flush=True)
+    raise SystemExit(78)
+
+
 def main() -> None:
     try:
         reject_legacy_secret_arguments(sys.argv[1:])
         args = parser().parse_args()
         launch = read_launch_message()
-    except LaunchProtocolError as error:
-        raise SystemExit(78) from error
+    except LaunchProtocolError:
+        stop_startup("launch_protocol")
     try:
         paths = resolve_runtime_paths(args)
-    except ValueError as error:
-        raise SystemExit(78) from error
+    except ValueError:
+        stop_startup("qa_path_boundary")
     if args.qa_mode and os.getenv("DEVPULSE_QA_FAIL_START") == "1":
-        raise SystemExit(78)
+        stop_startup("qa_failure_injection")
     try:
         token = resolve_access_token(launch.token)
-    except ValueError as error:
-        raise SystemExit(78) from error
+    except ValueError:
+        stop_startup("access_credential")
     instance_id = uuid4().hex
     if args.qa_mode:
         write_qa_path_report(paths)
