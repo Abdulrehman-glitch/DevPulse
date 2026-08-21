@@ -33,7 +33,7 @@ Current Microsoft pricing lists Artifact Signing Basic at USD 9.99 per account/m
 signtool verify /pa /all /tw .\DevPulse_0.3.0_x64-setup.exe
 ```
 
-`scripts/test-authenticode-verification.ps1` runs only inside a disposable GitHub-hosted Windows runner. It creates a one-day, self-signed, non-exportable **TEST** key in the runner's current-user certificate store, temporarily trusts only its public certificate, verifies positive/unsigned/tampered/untrusted cases, removes the certificate entries, and discards its temporary directory. No certificate or key is uploaded. The result validates machinery only and is never production code-signing assurance.
+`scripts/test-authenticode-verification.ps1` runs only inside a disposable GitHub-hosted Windows runner. It creates a one-day, self-signed, non-exportable **TEST** key in the runner's current-user certificate store, temporarily adds only its public certificate to the scoped CurrentUser `TrustedPeople` and `TrustedPublisher` stores (never the protected Root store), verifies positive/unsigned/tampered/untrusted cases, removes the certificate entries, and discards its temporary directory. No certificate or key is uploaded. The result validates machinery only and is never production code-signing assurance.
 
 ## Rotation, revocation, and incident response
 
