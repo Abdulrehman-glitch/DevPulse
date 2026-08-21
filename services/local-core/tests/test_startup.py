@@ -35,26 +35,30 @@ def test_token_is_accepted_from_the_bounded_stdin_launch_channel() -> None:
 
 
 @pytest.mark.parametrize(
-    "frame",
+    ("frame", "reason_code"),
     [
-        b"not-a-launch-frame\n",
-        LAUNCH_PREFIX + b"not-json\n",
-        launch_bytes(protocol_version=999),
-        launch_bytes(extra=True),
-        launch_bytes(token="weak"),
+        (b"not-a-launch-frame\n", "launch_frame_type"),
+        (LAUNCH_PREFIX + b"not-json\n", "launch_malformed"),
+        (launch_bytes(protocol_version=999), "launch_version"),
+        (launch_bytes(extra=True), "launch_schema"),
+        (launch_bytes(token="weak"), "launch_credential"),
     ],
 )
-def test_malformed_launch_data_fails_closed_without_output(frame: bytes, capsys) -> None:
-    with pytest.raises(LaunchProtocolError):
+def test_malformed_launch_data_fails_closed_without_output(
+    frame: bytes, reason_code: str, capsys
+) -> None:
+    with pytest.raises(LaunchProtocolError) as stopped:
         read_launch_message(io.BytesIO(frame))
+    assert stopped.value.reason_code == reason_code
     captured = capsys.readouterr()
     assert TOKEN not in captured.out + captured.err
 
 
 def test_oversized_launch_data_fails_closed() -> None:
     oversized = LAUNCH_PREFIX + b"{" + b"x" * MAX_LAUNCH_FRAME_BYTES + b"}\n"
-    with pytest.raises(LaunchProtocolError, match="invalid"):
+    with pytest.raises(LaunchProtocolError) as stopped:
         read_launch_message(io.BytesIO(oversized))
+    assert stopped.value.reason_code == "launch_oversized"
 
 
 class BlockingInput:
@@ -64,8 +68,9 @@ class BlockingInput:
 
 
 def test_missing_launch_data_times_out() -> None:
-    with pytest.raises(LaunchProtocolError, match="timed out"):
+    with pytest.raises(LaunchProtocolError, match="timed out") as stopped:
         read_launch_message(BlockingInput(), timeout_seconds=0.01)  # type: ignore[arg-type]
+    assert stopped.value.reason_code == "launch_timeout"
 
 
 def test_readiness_frame_is_versioned_bounded_and_non_secret() -> None:
@@ -94,7 +99,7 @@ def test_obsolete_secret_arguments_are_rejected_without_echo(
     assert stopped.value.code == 78
     captured = capsys.readouterr()
     assert TOKEN not in captured.out + captured.err
-    assert captured.err.strip() == "DEVPULSE_STARTUP_ERROR launch_protocol"
+    assert captured.err.strip() == "DEVPULSE_STARTUP_ERROR legacy_secret_argument"
 
 
 @pytest.mark.parametrize(
