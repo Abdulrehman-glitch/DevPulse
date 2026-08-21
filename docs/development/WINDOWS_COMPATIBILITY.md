@@ -17,6 +17,8 @@ The manual `.github/workflows/windows-compatibility.yml` workflow accepts one fu
 
 Each job exercises a source checkout and QA data root containing spaces and Unicode, verifies locale-invariant version/JSON handling, detects the installed WebView2 version, builds the packaged local core and current-user NSIS installer, and runs the authentic installed lifecycle. The installed application must demonstrate authenticated loopback readiness, isolated writable paths, owned-process cleanup, no machine-wide writes, and clean uninstall/reinstall behaviour. The concise job summary records the exact commit, runner image version, OS version, WebView2 version, installer filename/hash/size, signature-verifier states, and pass/fail result. Raw logs, screenshots, build trees, installers, and reports remain on the disposable runner and are not uploaded.
 
+The hosted-runner workspace is supplied through a runner-owned reparse alias. DevPulse deliberately keeps its strict no-reparse QA data boundary, so executable and report intermediates use `RUNNER_TEMP` while the application QA data root is one exactly named direct child of the disposable runner's system drive. The harness is hard-gated to GitHub-hosted Windows, accepts only the dedicated `DevPulse-QA*` leaf, deletes only that exact owned root, and never uses a normal user-profile data directory.
+
 ## Interpretation and limitations
 
 GitHub-hosted Windows accounts are administrators with UAC disabled. The automated evidence proves `asInvoker` and current-user configuration plus absence of machine writes; it does not truthfully reproduce a locked-down non-administrator account. A real standard-user profile remains a manual/unverified dimension.
