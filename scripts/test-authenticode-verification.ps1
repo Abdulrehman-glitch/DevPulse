@@ -73,44 +73,6 @@ function Invoke-BoundedTool {
     }
 }
 
-function Add-EphemeralTestTrust {
-    param(
-        [Parameter(Mandatory = $true)][ValidateSet("Root", "TrustedPublisher")][string]$StoreName,
-        [Parameter(Mandatory = $true)]$Certificate
-    )
-    $Store = [Security.Cryptography.X509Certificates.X509Store]::new(
-        $StoreName,
-        [Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
-    )
-    try {
-        $Store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-        $Store.Add($Certificate)
-    }
-    finally {
-        $Store.Close()
-        $Store.Dispose()
-    }
-}
-
-function Remove-EphemeralTestTrust {
-    param(
-        [Parameter(Mandatory = $true)][ValidateSet("Root", "TrustedPublisher")][string]$StoreName,
-        [Parameter(Mandatory = $true)]$Certificate
-    )
-    $Store = [Security.Cryptography.X509Certificates.X509Store]::new(
-        $StoreName,
-        [Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
-    )
-    try {
-        $Store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-        $Store.Remove($Certificate)
-    }
-    finally {
-        $Store.Close()
-        $Store.Dispose()
-    }
-}
-
 $Verifier = Join-Path $PSScriptRoot "verify-authenticode.ps1"
 $SignTool = Find-SignTool
 $TestRoot = Join-Path $env:RUNNER_TEMP "DevPulse-Authenticode-ephemeral-TEST-$PID"
@@ -119,17 +81,11 @@ $CanonicalTestRoot = [IO.Path]::GetFullPath($TestRoot)
 if ($CanonicalTestRoot -notlike "$RunnerTemp\*") { throw "Ephemeral signing test escaped RUNNER_TEMP." }
 
 $Certificate = $null
-$PublicOnlyCertificate = $null
-$UntrustedCertificate = $null
-$RootInstalled = $false
-$TrustedPublisherInstalled = $false
 try {
     New-Item -ItemType Directory -Force -Path $TestRoot | Out-Null
     $UnsignedCopy = Join-Path $TestRoot "unsigned-fixture.exe"
-    $SignedCopy = Join-Path $TestRoot "signed-ephemeral-TEST-fixture.exe"
-    $UntrustedCopy = Join-Path $TestRoot "untrusted-ephemeral-TEST-fixture.exe"
+    $SignedCopy = Join-Path $TestRoot "untrusted-ephemeral-TEST-fixture.exe"
     $TamperedCopy = Join-Path $TestRoot "tampered-fixture.exe"
-    $PublicCertificate = Join-Path $TestRoot "ephemeral-public-TEST-only.cer"
     Copy-Item -LiteralPath $UnsignedExecutable -Destination $UnsignedCopy
 
     Write-Host "Authenticode TEST phase 1/6: classify unsigned fixture."
@@ -145,50 +101,26 @@ try {
         -HashAlgorithm SHA256 `
         -KeyExportPolicy NonExportable `
         -NotAfter (Get-Date).AddDays(1)
-    Export-Certificate -Cert $Certificate -FilePath $PublicCertificate -Force | Out-Null
-    $PublicOnlyCertificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($PublicCertificate)
-    # Authenticode chain validation requires a trust anchor. TrustedPeople alone
-    # still produces NotTrusted on hosted Windows, so install only the public
-    # TEST certificate in this disposable runner's CurrentUser Root store.
-    Add-EphemeralTestTrust -StoreName "Root" -Certificate $PublicOnlyCertificate
-    $RootInstalled = $true
-    Add-EphemeralTestTrust -StoreName "TrustedPublisher" -Certificate $PublicOnlyCertificate
-    $TrustedPublisherInstalled = $true
 
-    Write-Host "Authenticode TEST phase 3/6: sign and validate trusted TEST fixture."
+    Write-Host "Authenticode TEST phase 3/6: verify the trusted runner shell and bounded state classifier."
+    $TrustedRunnerShellPath = (Get-Process -Id $PID).Path
+    $TrustedRunnerShell = (& $Verifier -Path $TrustedRunnerShellPath -ExpectedState valid) | ConvertFrom-Json
+    $Classifier = (& $Verifier -ClassifierSelfTest) | ConvertFrom-Json
+
+    Write-Host "Authenticode TEST phase 4/6: sign and classify an untrusted TEST fixture."
     Copy-Item -LiteralPath $UnsignedExecutable -Destination $SignedCopy
     Invoke-BoundedTool -FilePath $SignTool -Arguments @(
         "sign", "/fd", "SHA256", "/sha1", $Certificate.Thumbprint, "/s", "My", $SignedCopy
     )
-    $Valid = (& $Verifier -Path $SignedCopy -ExpectedState valid) | ConvertFrom-Json
+    $Untrusted = (& $Verifier -Path $SignedCopy -ExpectedState untrusted) | ConvertFrom-Json
 
-    Write-Host "Authenticode TEST phase 4/6: detect a tampered TEST fixture."
+    Write-Host "Authenticode TEST phase 5/6: detect a tampered TEST fixture."
     Copy-Item -LiteralPath $SignedCopy -Destination $TamperedCopy
     $Bytes = [IO.File]::ReadAllBytes($TamperedCopy)
     if ($Bytes.Length -lt 4097) { throw "Executable fixture is too small for a bounded tamper test." }
     $Bytes[4096] = $Bytes[4096] -bxor 0x01
     [IO.File]::WriteAllBytes($TamperedCopy, $Bytes)
     $Tampered = (& $Verifier -Path $TamperedCopy -ExpectedState invalid-tampered) | ConvertFrom-Json
-
-    Write-Host "Authenticode TEST phase 5/6: remove temporary trust and classify untrusted signature."
-    Remove-EphemeralTestTrust -StoreName "TrustedPublisher" -Certificate $PublicOnlyCertificate
-    $TrustedPublisherInstalled = $false
-    Remove-EphemeralTestTrust -StoreName "Root" -Certificate $PublicOnlyCertificate
-    $RootInstalled = $false
-    $UntrustedCertificate = New-SelfSignedCertificate `
-        -Type CodeSigningCert `
-        -Subject "CN=DevPulse Untrusted Ephemeral TEST Certificate Only" `
-        -CertStoreLocation "Cert:\CurrentUser\My" `
-        -KeyAlgorithm RSA `
-        -KeyLength 2048 `
-        -HashAlgorithm SHA256 `
-        -KeyExportPolicy NonExportable `
-        -NotAfter (Get-Date).AddDays(1)
-    Copy-Item -LiteralPath $UnsignedExecutable -Destination $UntrustedCopy
-    Invoke-BoundedTool -FilePath $SignTool -Arguments @(
-        "sign", "/fd", "SHA256", "/sha1", $UntrustedCertificate.Thumbprint, "/s", "My", $UntrustedCopy
-    )
-    $Untrusted = (& $Verifier -Path $UntrustedCopy -ExpectedState untrusted) | ConvertFrom-Json
 
     Write-Host "Authenticode TEST phase 6/6: record non-production verification evidence."
     [ordered]@{
@@ -198,7 +130,10 @@ try {
         productionAssurance = $false
         cases = [ordered]@{
             unsigned = $Unsigned.verificationState
-            validEphemeralTestSignature = $Valid.verificationState
+            trustedRunnerShellSignature = $TrustedRunnerShell.verificationState
+            validWindowsStatusClassification = $Classifier.cases.valid
+            expiredWindowsStatusClassification = $Classifier.cases.expired
+            signedEphemeralTestSignature = $Untrusted.verificationState
             tampered = $Tampered.verificationState
             untrusted = $Untrusted.verificationState
         }
@@ -209,19 +144,9 @@ try {
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $OutputPath -Encoding utf8
 }
 finally {
-    if ($TrustedPublisherInstalled -and $null -ne $PublicOnlyCertificate) {
-        try { Remove-EphemeralTestTrust -StoreName "TrustedPublisher" -Certificate $PublicOnlyCertificate } catch { Write-Warning "Disposable TEST publisher cleanup did not complete before runner disposal." }
-    }
-    if ($RootInstalled -and $null -ne $PublicOnlyCertificate) {
-        try { Remove-EphemeralTestTrust -StoreName "Root" -Certificate $PublicOnlyCertificate } catch { Write-Warning "Disposable TEST root cleanup did not complete before runner disposal." }
-    }
     if ($null -ne $Certificate) {
         Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($Certificate.Thumbprint)" -ErrorAction SilentlyContinue
     }
-    if ($null -ne $UntrustedCertificate) {
-        Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($UntrustedCertificate.Thumbprint)" -ErrorAction SilentlyContinue
-    }
-    if ($null -ne $PublicOnlyCertificate) { $PublicOnlyCertificate.Dispose() }
     if (Test-Path -LiteralPath $TestRoot -PathType Container) {
         $ResolvedTestRoot = (Resolve-Path -LiteralPath $TestRoot).Path
         if ([IO.Path]::GetFullPath($ResolvedTestRoot) -notlike "$RunnerTemp\*") {

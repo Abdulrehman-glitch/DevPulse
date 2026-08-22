@@ -157,7 +157,7 @@ jobs:
           } else { '- Environment: preflight evidence unavailable because an earlier step failed' }
           $SigningEvidence = if (Test-Path -LiteralPath $SigningPath) {
             $Signing = Get-Content -LiteralPath $SigningPath -Raw | ConvertFrom-Json
-            "- Signature verifier: unsigned=$($Signing.cases.unsigned), TEST-signed=$($Signing.cases.validEphemeralTestSignature), tampered=$($Signing.cases.tampered), untrusted=$($Signing.cases.untrusted)"
+            "- Signature verifier: unsigned=$($Signing.cases.unsigned), trusted runner shell=$($Signing.cases.trustedRunnerShellSignature), Valid-status classifier=$($Signing.cases.validWindowsStatusClassification), expiry classifier=$($Signing.cases.expiredWindowsStatusClassification), TEST-signed=$($Signing.cases.signedEphemeralTestSignature), tampered=$($Signing.cases.tampered)"
           } else { '- Signature verifier: evidence unavailable because an earlier step failed' }
           @"
           ## DevPulse Windows compatibility
