@@ -137,7 +137,7 @@ jobs:
           .\scripts\run-installed-installer-qa.ps1 `
             -ArtifactDirectory (Join-Path $env:RUNNER_TEMP 'devpulse-compatibility-build') `
             -ReportDirectory (Join-Path $env:RUNNER_TEMP 'devpulse-compatibility-reports') `
-            -QaRootLeaf 'DevPulse QA installed 文档 ${{ matrix.culture }}'
+            -QaRootLeaf 'DevPulse-QA-installed 文档 ${{ matrix.culture }}'
 
       - name: Write concise compatibility summary
         if: always()
