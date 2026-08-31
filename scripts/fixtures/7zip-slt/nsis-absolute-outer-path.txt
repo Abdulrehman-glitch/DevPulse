@@ -1,0 +1,19 @@
+7-Zip 24.09 (x64)
+
+Listing archive: D:\a\DevPulse\DevPulse\DevPulse_0.3.0-alpha.1_x64-setup.exe
+
+--
+Path = D:\a\DevPulse\DevPulse\DevPulse_0.3.0-alpha.1_x64-setup.exe
+tYpE = nSiS
+pHySiCaL sIzE = 20971520
+Headers Size = 9468
+
+----------
+Path = $INSTDIR\devpulse-desktop.exe
+Size = 10485760
+
+Path = $INSTDIR\devpulse-local-core.exe
+Size = 8388608
+
+Path = $INSTDIR\uninstall.exe
+Size = 131072

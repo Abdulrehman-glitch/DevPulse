@@ -1,5 +1,41 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="DevPulse interim mark">
-  <rect width="512" height="512" rx="112" fill="#10243e"/>
-  <path d="M72 270h92l42-104 70 190 48-112 28 26h88" fill="none" stroke="#5de2c2" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+  role="img"
+  aria-label="DevPulse pulse aperture mark"
+>
+  <mask
+    id="split-signal-aperture"
+    maskUnits="userSpaceOnUse"
+    x="0"
+    y="0"
+    width="512"
+    height="512"
+  >
+    <path fill="#fff" d="M0 0h512v512H0z" />
+    <path
+      d="M96 286h68l52-52"
+      fill="none"
+      stroke="#000"
+      stroke-width="52"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M296 234l52 52h68"
+      fill="none"
+      stroke="#000"
+      stroke-width="52"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </mask>
+  <path
+    fill="#008F84"
+    fill-rule="evenodd"
+    mask="url(#split-signal-aperture)"
+    d="M172 56h168c10 0 19 4 26 11l79 79c7 7 11 16 11 26v168c0 10-4 19-11 26l-79 79c-7 7-16 11-26 11H172c-10 0-19-4-26-11l-79-79c-7-7-11-16-11-26V172c0-10 4-19 11-26l79-79c7-7 16-11 26-11z"
+  />
+  <circle cx="256" cy="256" r="18" fill="#B7D94B" />
 </svg>

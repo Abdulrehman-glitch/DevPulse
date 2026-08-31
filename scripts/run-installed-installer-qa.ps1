@@ -40,7 +40,7 @@ public static class DevPulseInstalledQaNative {
 }
 "@
 
-$Version = "0.3.0-alpha.1"
+$Version = "0.3.0"
 $ExpectedInstallDirectory = Join-Path $env:LOCALAPPDATA "DevPulse"
 $ExpectedStartMenuDirectory = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\DevPulse"
 $ExpectedDesktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "DevPulse.lnk"

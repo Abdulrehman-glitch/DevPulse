@@ -18,7 +18,7 @@ import type { DataProvider } from "../providers/contracts";
 
 export function SettingsPage({
   provider,
-  version = "0.3.0-alpha.1",
+  version = "0.3.0",
 }: {
   provider: DataProvider;
   version?: string;

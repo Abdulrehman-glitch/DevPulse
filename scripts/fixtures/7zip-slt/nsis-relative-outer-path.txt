@@ -1,0 +1,16 @@
+7-Zip 24.09 (x64)
+
+Listing archive: DevPulse_0.3.0-alpha.1_x64-setup.exe
+
+--
+Path = DevPulse_0.3.0-alpha.1_x64-setup.exe
+Type = Nsis
+Physical Size = 20971520
+Headers Size = 9468
+
+----------
+Path = $INSTDIR\devpulse-desktop.exe
+
+Path = $INSTDIR\devpulse-local-core.exe
+
+Path = $INSTDIR\uninstall.exe

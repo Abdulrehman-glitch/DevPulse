@@ -1,0 +1,26 @@
+7-Zip 24.09 (x64)
+
+Scanning the drive for archives:
+1 file, 20971520 bytes (20 MiB)
+
+Listing archive: D:\a\DevPulse\DevPulse\apps\desktop\src-tauri\target\release\bundle\nsis\DevPulse_0.3.0-alpha.1_x64-setup.exe
+
+--
+Type = Nsis
+Physical Size = 20971520
+Headers Size = 9468
+Method = LZMA2:24
+Solid = +
+
+----------
+Path = $INSTDIR\devpulse-desktop.exe
+Size = 10485760
+Packed Size = 5242880
+
+Path = $INSTDIR\devpulse-local-core.exe
+Size = 8388608
+Packed Size = 4194304
+
+Path = $INSTDIR\uninstall.exe
+Size = 131072
+Packed Size = 65536

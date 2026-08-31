@@ -41,6 +41,7 @@ jobs:
           npm run typecheck
           npm test
           npm run build
+          node scripts/test-brand-assets.mjs
           npm run docs:check
           npm run json:check
           npm run tauri:check
@@ -86,6 +87,7 @@ jobs:
           .\.venv\Scripts\python.exe -m ruff format --check .
           .\.venv\Scripts\python.exe -m ruff check .
           .\.venv\Scripts\python.exe -m pytest
+          .\scripts\test-installer-archive-inspection.ps1
 
   rust:
     name: Rust

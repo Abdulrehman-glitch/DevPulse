@@ -26,7 +26,7 @@ jobs:
       id-token: write
     env:
       CARGO_TERM_COLOR: always
-      DEVPULSE_VERSION: 0.3.0-alpha.1
+      DEVPULSE_VERSION: 0.3.0
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
       PYTHONUTF8: "1"
     steps:
@@ -69,6 +69,7 @@ jobs:
           rustup show active-toolchain
           npm run versions:check
           .\scripts\test-installed-installer-qa-harness.ps1
+          .\scripts\test-installer-archive-inspection.ps1
           if ((git status --porcelain=v1 --untracked-files=no).Count -ne 0) {
             git status --short
             throw "Dependency preparation modified a tracked file."
@@ -141,7 +142,7 @@ jobs:
             -SbomPath $Sbom `
             -OutputDirectory $Output `
             -CommitSha $env:TESTED_SHA
-          $Installer = Get-Item -LiteralPath (Join-Path $Output "DevPulse_0.3.0-alpha.1_x64-setup.exe")
+          $Installer = Get-Item -LiteralPath (Join-Path $Output "DevPulse_0.3.0_x64-setup.exe")
           "installer=$($Installer.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "artifact_dir=$Output" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
@@ -153,11 +154,11 @@ jobs:
       - name: Upload minimal release candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: devpulse-v0.3.0-alpha.1-release-candidate
+          name: devpulse-v0.3.0-release-candidate
           path: |
-            ${{ steps.candidate.outputs.artifact_dir }}\DevPulse_0.3.0-alpha.1_x64-setup.exe
+            ${{ steps.candidate.outputs.artifact_dir }}\DevPulse_0.3.0_x64-setup.exe
             ${{ steps.candidate.outputs.artifact_dir }}\SHA256SUMS.txt
-            ${{ steps.candidate.outputs.artifact_dir }}\devpulse-0.3.0-alpha.1.cdx.json
+            ${{ steps.candidate.outputs.artifact_dir }}\devpulse-0.3.0.cdx.json
             ${{ steps.candidate.outputs.artifact_dir }}\installer-qa-result.json
             ${{ steps.candidate.outputs.artifact_dir }}\release-manifest.json
           if-no-files-found: error

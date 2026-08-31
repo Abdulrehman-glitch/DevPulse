@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "devpulse-local-core"
-version = "0.3.0a1"
+version = "0.3.0"
 description = "Read-only local services for the DevPulse desktop application"
 readme = "README.md"
 license = { text = "Apache-2.0" }

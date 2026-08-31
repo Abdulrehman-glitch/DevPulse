@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { describe, expect, it, vi } from "vitest";
@@ -10,7 +10,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 
 const connection = {
   status: "ready" as const,
-  version: "0.3.0-alpha.1",
+  version: "0.3.0",
   address: "http://127.0.0.1:1",
   token: "fixture",
 };
@@ -27,6 +27,7 @@ describe("desktop application states", () => {
     expect(
       screen.getByRole("heading", { name: "Preparing your workspace" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "DevPulse" })).toBeInTheDocument();
     expect(screen.getByLabelText("Starting local service")).toBeInTheDocument();
   });
 
@@ -103,6 +104,21 @@ describe("desktop application states", () => {
     expect(
       screen.getAllByText(/File contents are never displayed/),
     ).toHaveLength(2);
+  });
+
+  it("opens each app view at the top of the desktop content shell", async () => {
+    const user = userEvent.setup();
+    render(<TestApp connection={connection} provider={successfulProvider()} />);
+    await screen.findByRole("heading", { level: 1, name: "Overview" });
+    await user.click(screen.getByRole("button", { name: "Projects" }));
+    const shell = document.querySelector<HTMLElement>(".content-shell");
+    expect(shell).not.toBeNull();
+    shell!.scrollTop = 600;
+
+    await user.click(await screen.findByRole("button", { name: "Details" }));
+    await screen.findByRole("heading", { name: "Temporary project" });
+
+    await waitFor(() => expect(shell!.scrollTop).toBe(0));
   });
 
   it("shows the fixed safety controls in settings", async () => {
@@ -323,7 +339,9 @@ describe("desktop application states", () => {
     await user.click(await screen.findByRole("button", { name: "Projects" }));
     await user.click(await screen.findByRole("button", { name: "Details" }));
     expect(
-      await screen.findByText(/deliberately long artificial project/),
+      await screen.findByRole("heading", {
+        name: /deliberately long artificial project/,
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/long artificial commit message/),

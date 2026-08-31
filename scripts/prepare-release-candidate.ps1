@@ -20,8 +20,16 @@ function Read-PassedJson([string]$Path, [string]$Label) {
     return $Value
 }
 
+function Read-PassedInstallerInspection([string]$Path) {
+    $Inspection = Read-PassedJson $Path "Installer inspection"
+    if ($Inspection.payloadInspectionStatus -ne "passed") {
+        throw "Installer payload inspection evidence did not pass."
+    }
+    return $Inspection
+}
+
 $BuildManifest = Get-Content -LiteralPath (Join-Path $ArtifactDirectory "build-manifest.json") -Raw | ConvertFrom-Json
-$Inspection = Read-PassedJson (Join-Path $ArtifactDirectory "installer-inspection.json") "Installer inspection"
+$Inspection = Read-PassedInstallerInspection (Join-Path $ArtifactDirectory "installer-inspection.json")
 if ($BuildManifest.commitSha -ne $CommitSha -or $BuildManifest.devPulseVersion -ne $Version) {
     throw "Build manifest identity does not match the selected release commit."
 }

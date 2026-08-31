@@ -1,6 +1,6 @@
 # Reliability contract
 
-This contract governs the DevPulse-owned persistence, scanner, local-core lifecycle, and diagnostic boundaries introduced for `0.3.0`. It covers documented public prerelease state through `0.3.0-alpha.1`; it is not a promise of perpetual compatibility with undocumented pre-1.0 files.
+This contract governs the DevPulse-owned persistence, scanner, local-core lifecycle, and diagnostic boundaries introduced for `0.3.0`. It covers the documented public `0.3.0` state; it is not a promise of perpetual compatibility with undocumented pre-1.0 files.
 
 ## Persisted data ownership
 

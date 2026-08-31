@@ -1,9 +1,6 @@
 import type { ProjectSummary } from "@devpulse/shared-types";
 import {
   Archive,
-  ArrowDownRight,
-  ArrowUpRight,
-  CircleAlert,
   FolderOpen,
   FolderSearch,
   Star,
@@ -11,16 +8,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-const statusLabels: Record<string, string> = {
-  clean: "Clean",
-  modified: "Modified",
-  untracked: "Untracked",
-  detached: "Detached",
-  missing: "Missing",
-  not_git: "Not Git",
-  access_error: "Unavailable",
-};
 
 const ROW_HEIGHT = 116;
 const OVERSCAN = 5;
@@ -49,7 +36,7 @@ export function ProjectTable({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const hasActions = Boolean(onOpen || onFavorite || onArchive || onRemove);
-  const columnCount = 9 + (onSelect ? 1 : 0) + (hasActions ? 1 : 0);
+  const columnCount = 7 + (onSelect ? 1 : 0) + (hasActions ? 1 : 0);
   const viewportHeight = 520;
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
   const visibleCount = Math.ceil(viewportHeight / ROW_HEIGHT) + OVERSCAN * 2;
@@ -110,7 +97,7 @@ export function ProjectTable({
         data-rendered-row-count={visibleProjects.length}
       >
         <table
-          className="project-table virtual-project-table"
+          className={`project-table virtual-project-table ${onSelect ? "table-has-selection" : ""} ${hasActions ? "table-has-actions" : ""}`}
           aria-label="Registered DevPulse projects"
           aria-rowcount={projects.length + 1}
         >
@@ -124,17 +111,15 @@ export function ProjectTable({
                   <span className="visually-hidden">Select</span>
                 </th>
               )}
-              <th>Favorite</th>
-              <th>Project</th>
-              <th>Status</th>
-              <th>Branch</th>
-              <th>Technology</th>
-              <th>Sync</th>
-              <th>Changes</th>
-              <th>Last commit</th>
-              <th className="align-right">Health</th>
+              <th className="favorite-column">Favorite</th>
+              <th className="project-column">Project</th>
+              <th className="state-column">State</th>
+              <th className="branch-column">Branch &amp; upstream</th>
+              <th className="sync-column">Sync</th>
+              <th className="changes-column">Local changes</th>
+              <th className="activity-column">Activity</th>
               {hasActions && (
-                <th>
+                <th className="row-actions">
                   <span className="visually-hidden">Actions</span>
                 </th>
               )}
@@ -209,6 +194,14 @@ function ProjectRow({
   onOpenFolder?: (project: ProjectSummary) => void;
   onMoveRow: (index: number) => void;
 }) {
+  const state = repositoryState(project);
+  const sync = syncSummary(project);
+  const changes = changeSummary(project);
+  const language = project.primary_technology.trim() || "Unknown language";
+  const branch = project.branch.trim() || "Unknown branch";
+  const upstream = project.tracking_branch?.trim() || "No upstream configured";
+  const activity = activitySummary(project);
+
   return (
     <tr
       key={project.id}
@@ -217,7 +210,7 @@ function ProjectRow({
       data-project-id={project.id}
       tabIndex={0}
       aria-rowindex={rowIndex + 2}
-      aria-label={`${project.name}, ${statusLabels[project.status] ?? project.status}, row ${rowIndex + 1} of ${total}`}
+      aria-label={`${project.name}, ${state}, row ${rowIndex + 1} of ${total}`}
       onKeyDown={(event) => {
         if (event.key === "ArrowDown") {
           event.preventDefault();
@@ -238,7 +231,7 @@ function ProjectRow({
           />
         </td>
       )}
-      <td>
+      <td className="favorite-column">
         {onFavorite ? (
           <button
             className={`favorite-button ${project.favorite ? "favorite-active" : ""}`}
@@ -256,7 +249,7 @@ function ProjectRow({
           <Star size={16} fill="currentColor" aria-label="Favorite" />
         ) : null}
       </td>
-      <td>
+      <td className="project-column">
         <button
           className="project-name-button"
           onClick={() => onOpen?.(project.id)}
@@ -269,6 +262,9 @@ function ProjectRow({
         <div className="project-path" title={project.path}>
           {project.path}
         </div>
+        <div className="project-language" title={language}>
+          {language}
+        </div>
         {project.tags.length > 0 && (
           <div className="project-tags">
             {project.tags.slice(0, 3).map((tag) => (
@@ -277,40 +273,30 @@ function ProjectRow({
           </div>
         )}
       </td>
-      <td>
+      <td className="state-column">
         <span className={`status-pill status-${project.status}`}>
           <i aria-hidden="true" />
-          {statusLabels[project.status] ?? project.status}
+          {state}
         </span>
       </td>
-      <td className="data-cell" title={project.tracking_branch ?? undefined}>
-        <span className="branch-cell">{project.branch}</span>
-        {project.tracking_branch && (
-          <small className="subtle-cell">{project.tracking_branch}</small>
-        )}
-      </td>
-      <td>{project.primary_technology}</td>
-      <td>
-        <span className="sync-count" title="Commits ahead">
-          <ArrowUpRight size={14} /> {project.ahead_count}
+      <td className="branch-column">
+        <span className="branch-cell" title={branch}>
+          {branch}
         </span>
-        <span className="sync-count" title="Commits behind">
-          <ArrowDownRight size={14} /> {project.behind_count}
-        </span>
+        <small className="subtle-cell" title={upstream}>
+          {upstream}
+        </small>
       </td>
-      <td
-        className="data-cell"
-        title={`${project.modified_count} modified, ${project.staged_count} staged, ${project.untracked_count} untracked`}
-      >
-        {project.changed_files}
-        <span className="change-breakdown">
-          M {project.modified_count} / S {project.staged_count} / U{" "}
-          {project.untracked_count}
-        </span>
+      <td className="data-cell sync-column" title={sync.detail}>
+        {sync.label}
       </td>
-      <td>
+      <td className="data-cell changes-column" title={changes.detail}>
+        {changes.label}
+      </td>
+      <td className="activity-column">
+        <div className="activity-state">{activity}</div>
         <div className="commit-message" title={project.last_commit_message}>
-          {project.last_commit_message}
+          {project.last_commit_message || "No commit message"}
         </div>
         <div className="commit-meta">
           {project.last_commit_date
@@ -319,16 +305,6 @@ function ProjectRow({
               }).format(new Date(project.last_commit_date))
             : "No commits"}
         </div>
-      </td>
-      <td className="align-right">
-        <span className="health-score">{project.health_score}</span>
-        {project.warning_count > 0 && (
-          <CircleAlert
-            className="warning-icon"
-            size={15}
-            aria-label={`${project.warning_count} warnings`}
-          />
-        )}
       </td>
       {hasActions && (
         <td className="row-actions">
@@ -371,4 +347,88 @@ function ProjectRow({
       )}
     </tr>
   );
+}
+
+function repositoryState(project: ProjectSummary) {
+  if (!project.exists || project.status === "missing")
+    return "Repository missing";
+  if (project.error || project.status === "access_error") {
+    return "Repository unavailable";
+  }
+  if (!project.is_git_repository || project.status === "not_git") {
+    return "Not a Git repository";
+  }
+  if (project.status === "clean") return "Clean — no local changes";
+  if (project.status === "modified" || project.status === "untracked") {
+    return "Changes detected";
+  }
+  if (project.status === "detached") return "Detached HEAD";
+  return "Repository state unknown";
+}
+
+function syncSummary(project: ProjectSummary) {
+  if (!project.exists || project.error || !project.is_git_repository) {
+    return {
+      label: "Sync unavailable",
+      detail: "Sync information is unavailable",
+    };
+  }
+  if (!project.tracking_branch) {
+    return {
+      label: "Sync unknown",
+      detail: "No upstream branch is configured",
+    };
+  }
+  if (project.ahead_count > 0 && project.behind_count > 0) {
+    return {
+      label: `Diverged: ${project.ahead_count} ahead, ${project.behind_count} behind`,
+      detail: `${project.ahead_count} commits ahead and ${project.behind_count} commits behind`,
+    };
+  }
+  if (project.ahead_count > 0) {
+    return {
+      label: `Ahead by ${commitCount(project.ahead_count)}`,
+      detail: `${project.ahead_count} commit${plural(project.ahead_count)} ahead of upstream`,
+    };
+  }
+  if (project.behind_count > 0) {
+    return {
+      label: `Behind by ${commitCount(project.behind_count)}`,
+      detail: `${project.behind_count} commit${plural(project.behind_count)} behind upstream`,
+    };
+  }
+  return { label: "Up to date", detail: "Matches the upstream branch" };
+}
+
+function changeSummary(project: ProjectSummary) {
+  if (!project.exists || project.error || !project.is_git_repository) {
+    return {
+      label: "Changes unavailable",
+      detail: "Local change information is unavailable",
+    };
+  }
+  const count = Math.max(
+    project.changed_files,
+    project.modified_count + project.staged_count + project.untracked_count,
+  );
+  if (count === 0)
+    return { label: "No local changes", detail: "Working tree is clean" };
+  return {
+    label: `${count} local change${plural(count)}`,
+    detail: `${project.modified_count} modified, ${project.staged_count} staged, ${project.untracked_count} untracked`,
+  };
+}
+
+function activitySummary(project: ProjectSummary) {
+  if (project.recent_activity === true) return "Recent activity";
+  if (project.recent_activity === false) return "No recent activity";
+  return "Activity unknown";
+}
+
+function commitCount(count: number) {
+  return `${count} commit${plural(count)}`;
+}
+
+function plural(count: number) {
+  return count === 1 ? "" : "s";
 }

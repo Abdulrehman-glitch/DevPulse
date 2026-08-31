@@ -14,6 +14,7 @@ npm test
 npm run build
 npm audit --omit=dev
 npm audit
+node scripts/test-brand-assets.mjs
 ```
 
 ## Python local core
@@ -37,6 +38,7 @@ cargo clippy --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --all-ta
 cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 npm run tauri:check
 npm run workflows:check
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-installer-archive-inspection.ps1
 ```
 
 Use an isolated `cargo-audit` binary and the RustSec database. Review target-excluded informational warnings separately from packages in the supported Windows graph.

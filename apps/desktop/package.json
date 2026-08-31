@@ -1,7 +1,7 @@
 {
   "name": "@devpulse/desktop",
   "private": true,
-  "version": "0.3.0-alpha.1",
+  "version": "0.3.0",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -15,7 +15,7 @@
     "bundle:nsis": "node ../../node_modules/@tauri-apps/cli/tauri.js build --bundles nsis -- --locked"
   },
   "dependencies": {
-    "@devpulse/shared-types": "0.3.0-alpha.1",
+    "@devpulse/shared-types": "0.3.0",
     "@tanstack/react-query": "^5.90.20",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.7.1",

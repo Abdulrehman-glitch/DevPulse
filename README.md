@@ -4,7 +4,7 @@ DevPulse is a Windows desktop application for reviewing local development projec
 
 ## Status
 
-DevPulse is an alpha-stage public project on the `0.3.0-alpha.1` release line. It is not yet a production support promise.
+DevPulse is a pre-1.0 public project on the `0.3.0` release line. It is not a production support promise.
 
 This Git history starts with a curated pre-public baseline. Historical development and versions through `v0.2.0-beta.1` remain in a preserved private archive and are not recreated here. Public release provenance begins with the curated `v0.3.0-alpha.1` line. See [PUBLICATION_STATUS.md](PUBLICATION_STATUS.md).
 
@@ -15,7 +15,9 @@ The supported target is Windows x64 with the Microsoft WebView2 Evergreen Runtim
 ## Capabilities
 
 - discovers and registers local development projects within configured boundaries;
-- summarizes repository state and detected technologies without changing project files;
+- leads with repository health, scan freshness, actionable attention, and recent activity;
+- presents branch/upstream state, ahead/behind sync, local changes, latest commit activity, and detected technologies without changing project files;
+- provides a status-led repository detail view with warnings, Git state, recent commits, changed-file names, health signals, and local-only metadata;
 - presents system, project-health, activity, diagnostics, and settings views;
 - keeps application data and logs in DevPulse-owned locations;
 - provides an explicit QA mode whose writable paths must remain inside one validated sandbox root.
@@ -32,7 +34,7 @@ See [the system overview](docs/architecture/SYSTEM_OVERVIEW.md), [startup protoc
 
 DevPulse is local-first and does not include a hosted SaaS implementation. Project information is processed locally. Safe diagnostic exports omit raw project paths, source contents, credentials, URLs, and free-form logs, but should still be reviewed before sharing. The scanner is intended to be read-only, but hostile filesystem races and a compromised same-user process are outside its security boundary.
 
-Current limitations include unsigned Windows artifacts, no updater, a single maintainer, an interim visual identity, and a bounded Windows-only support claim. Release artifacts are alpha quality and require a preinstalled WebView2 runtime. The unsigned status and future key-custody design are explicit in the [Windows code-signing strategy](docs/security/WINDOWS_CODE_SIGNING.md).
+Current limitations include unsigned Windows artifacts, no updater, a single maintainer, and a bounded Windows-only support claim. Release artifacts are alpha quality and require a preinstalled WebView2 runtime. The unsigned status and future key-custody design are explicit in the [Windows code-signing strategy](docs/security/WINDOWS_CODE_SIGNING.md).
 
 ## Development
 
