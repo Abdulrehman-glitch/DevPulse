@@ -19,6 +19,18 @@ Each job exercises a source checkout and QA data root containing spaces and Unic
 
 The hosted-runner workspace is supplied through a runner-owned reparse alias. DevPulse deliberately keeps its strict no-reparse QA data boundary, so executable and report intermediates use `RUNNER_TEMP` while the application QA data root is one exactly named direct child of the disposable runner's system drive. The harness is hard-gated to GitHub-hosted Windows, accepts only the dedicated `DevPulse-QA*` leaf, deletes only that exact owned root, and never uses a normal user-profile data directory.
 
+## Installer archive inspection
+
+`scripts/inspect-installer.ps1` reads the record-oriented output from `7z l -slt`. The outer archive is the single record whose case-insensitive `Type` field is `Nsis`; its positive `Physical Size` must equal the installer file length. The outer `Path` field is deliberately optional and non-authoritative because 7-Zip versions and runner contexts may omit it or report an absolute or relative label.
+
+Every remaining `Path` record is treated as payload metadata. The inspector requires exactly one `devpulse-desktop.exe`, `devpulse-local-core.exe`, and `uninstall.exe`, and rejects duplicates or any other executable. This retains the payload allowlist while avoiding assumptions about how 7-Zip labels the outer file.
+
+The parser contract is covered by locale/case, missing-path, relative-path, duplicate, missing-executable, unexpected-executable, and size-mismatch fixtures:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-installer-archive-inspection.ps1
+```
+
 ## Interpretation and limitations
 
 GitHub-hosted Windows accounts are administrators with UAC disabled. The automated evidence proves `asInvoker` and current-user configuration plus absence of machine writes; it does not truthfully reproduce a locked-down non-administrator account. A real standard-user profile remains a manual/unverified dimension.

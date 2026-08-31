@@ -10,16 +10,16 @@ Only the maintainer approves a release. This procedure does not authorize a tag 
 
 `scripts/sync-version.mjs` is authoritative for npm workspace manifests and lock metadata, the Rust package and lock entry, Tauri configuration, Python package and runtime metadata, API metadata, UI fallbacks, tests, and release scripts.
 
-For `0.3.0-alpha.1`, Windows resources that require four numeric fields use `0.3.0.1`; the user-facing product version remains `0.3.0-alpha.1`. This mapping must be explicit in artifact evidence and must not relabel the prerelease as a stable build.
+For `0.3.0`, Windows resources that require four numeric fields use `0.3.0.0`; the user-facing product version remains `0.3.0`. This is a pre-1.0 keeper release, not a `1.0` support commitment.
 
 ## Candidate validation
 
 1. Start from reviewed `main` with a clean worktree and locked toolchains.
 2. Install dependencies from lockfiles and run every command in [TESTING.md](TESTING.md).
-3. Regenerate asset hashes, dependency licences, notices, vulnerability evidence, API contract, and any approved SBOM.
+3. Regenerate asset hashes, dependency licences, notices, vulnerability evidence, API contract, and any approved SBOM. Run `node scripts/test-brand-assets.mjs` after icon generation.
 4. Review the [Rust advisory disposition](../legal/RUST_ADVISORY_DISPOSITION.md), run the workflow storage policy check, and verify the release's [code-signing state](../security/WINDOWS_CODE_SIGNING.md) truthfully.
 5. Build the sidecar and production application. Store local executables, raw logs, and machine-specific reports only in ignored output.
-6. Inspect the installer without executing it. Record hashes, unsigned/signing state, bundled runtime, notices, and source commit.
+6. Run `scripts/test-installer-archive-inspection.ps1`, then inspect the installer without executing it. Record hashes, unsigned/signing state, bundled runtime, notices, and source commit.
 7. For a compatibility-changing release, run the manual two-image [Windows compatibility matrix](WINDOWS_COMPATIBILITY.md) for a reviewed `main` SHA. It is artifact-free and does not replace final Release QA.
 8. Dispatch `.github/workflows/release-qa.yml` with the full 40-character intended release commit. The workflow and selected commit must resolve to the same SHA.
 9. Require authentic NSIS install, authenticated smoke, uninstall, reinstall, final cleanup, runtime-only CycloneDX SBOM generation, checksum creation, and installer attestation on the standard GitHub-hosted Windows runner.

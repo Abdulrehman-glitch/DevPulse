@@ -120,7 +120,7 @@ def main() -> None:
         )
     output = {
         "schemaVersion": 1,
-        "productVersion": "0.3.0-alpha.1",
+        "productVersion": "0.3.0",
         "dataset": "artificial project metadata; no external repositories",
         "budgets": {
             "core_discovery_ms": DISCOVERY_BUDGET_MS,

@@ -46,6 +46,7 @@ export function DesktopApp({
   const [collapsed, setCollapsed] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState<"project" | "root" | null>(null);
+  const contentShellRef = useRef<HTMLElement>(null);
   const client = useQueryClient();
   const automationStarted = useRef(false);
   const settings = useQuery({
@@ -59,6 +60,9 @@ export function DesktopApp({
       settings.data?.reduced_motion ?? false,
     );
   }, [settings.data]);
+  useEffect(() => {
+    if (contentShellRef.current) contentShellRef.current.scrollTop = 0;
+  }, [page, selectedProject]);
   useEffect(() => {
     if (
       !connection.qaMode ||
@@ -230,22 +234,29 @@ export function DesktopApp({
         }}
         onToggle={() => setCollapsed((value) => !value)}
       />
-      <main className="content-shell">
+      <main className="content-shell" ref={contentShellRef}>
         {connection.qaMode && <QaModeBanner provider={provider} />}
-        <div className="core-status" title="Private local service connection">
-          <span /> Local core connected
+        <div className="app-toolbar" aria-label="Application status">
+          <div className="core-status" title="Private local service connection">
+            <span /> Local core connected
+          </div>
+          <NotificationCenter provider={provider} />
         </div>
-        <NotificationCenter provider={provider} />
-        {selectedProject ? (
-          <ProjectDetailsPage
-            provider={provider}
-            projectId={selectedProject}
-            onBack={() => setSelectedProject(null)}
-            qaMode={Boolean(connection.qaMode)}
-          />
-        ) : (
-          content
-        )}
+        <div
+          className="view-frame"
+          key={selectedProject ? `project-${selectedProject}` : page}
+        >
+          {selectedProject ? (
+            <ProjectDetailsPage
+              provider={provider}
+              projectId={selectedProject}
+              onBack={() => setSelectedProject(null)}
+              qaMode={Boolean(connection.qaMode)}
+            />
+          ) : (
+            content
+          )}
+        </div>
       </main>
       {onboarding && !connection.qaMode && (
         <ProjectOnboarding

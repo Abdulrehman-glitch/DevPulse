@@ -1,5 +1,6 @@
 import type { CoreConnection } from "@devpulse/shared-types";
 import { AlertCircle, FileText, RefreshCw } from "lucide-react";
+import { BrandMark } from "./BrandMark";
 
 export function StartupScreen({
   connection,
@@ -13,11 +14,7 @@ export function StartupScreen({
   return (
     <main className="startup-shell" aria-live="polite">
       <section className="startup-card">
-        <div className="brand-mark brand-mark-large" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
+        <BrandMark size="large" />
         <p className="eyebrow">DevPulse desktop</p>
         <h1>
           {failed

@@ -8,6 +8,7 @@ import {
   MonitorCog,
   Settings,
 } from "lucide-react";
+import { BrandMark } from "./BrandMark";
 
 export type Page =
   "overview" | "projects" | "activity" | "system" | "diagnostics" | "settings";
@@ -37,11 +38,7 @@ export function Sidebar({
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
       <div className="brand">
-        <div className="brand-mark" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
+        <BrandMark decorative />
         {!collapsed && <span className="brand-name">DevPulse</span>}
       </div>
       <nav aria-label="Primary navigation">
@@ -63,10 +60,10 @@ export function Sidebar({
         <button
           className="collapse-button"
           onClick={onToggle}
-          title="Toggle navigation"
+          title={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
         >
           {collapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
-          <span className="visually-hidden">Toggle navigation</span>
         </button>
       </div>
     </aside>

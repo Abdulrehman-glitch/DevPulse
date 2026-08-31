@@ -245,7 +245,7 @@ export async function resolveCoreConnection(): Promise<CoreConnection> {
         status: "ready",
         address,
         token,
-        version: "0.3.0-alpha.1",
+        version: "0.3.0",
         qaMode: import.meta.env.VITE_DEVPULSE_QA_MODE === "1",
       }
     : {

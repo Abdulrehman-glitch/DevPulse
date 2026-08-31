@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import type { DataProvider } from "../providers/contracts";
+import { BrandMark } from "./BrandMark";
 import { useFocusTrap } from "./useFocusTrap";
 
 type Mode = "intro" | "project" | "root";
@@ -120,11 +121,7 @@ export function ProjectOnboarding({
           <ShieldCheck size={18} /> Read-only boundary active
         </div>
         <div className="onboarding-content">
-          <div className="brand-mark brand-mark-large" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
+          <BrandMark size="large" decorative />
           <p className="eyebrow">DevPulse {version}</p>
           <div className="onboarding-steps" aria-label="Onboarding progress">
             <span className={mode === "intro" ? "step-active" : ""}>

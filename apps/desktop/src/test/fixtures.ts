@@ -186,7 +186,7 @@ export function successfulProvider(): DataProvider {
     resetQaData: async () => settings,
     regenerateQaData: async () => settings,
     getSafeDiagnostics: async () => ({
-      devpulse_version: "0.3.0-alpha.1",
+      devpulse_version: "0.3.0",
       operating_system: "Windows 11",
       qa_mode: false,
       local_core_status: "connected",

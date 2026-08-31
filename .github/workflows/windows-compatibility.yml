@@ -87,6 +87,7 @@ jobs:
           npm run versions:check
           npm run workflows:check
           .\scripts\test-installed-installer-qa-harness.ps1
+          .\scripts\test-installer-archive-inspection.ps1
 
       - name: Build authentic sidecar and NSIS installer
         shell: pwsh

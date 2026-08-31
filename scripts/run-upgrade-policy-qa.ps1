@@ -14,7 +14,7 @@ if ($env:GITHUB_ACTIONS -ne "true" -or $env:DEVPULSE_DISPOSABLE_RUNNER -ne "gith
 }
 if ($env:RUNNER_OS -ne "Windows") { throw "Upgrade QA requires a GitHub-hosted Windows runner." }
 
-$Version = "0.3.0-alpha.1"
+$Version = "0.3.0"
 $InstallDirectory = Join-Path $env:LOCALAPPDATA "DevPulse"
 $StartMenuDirectory = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\DevPulse"
 $DesktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "DevPulse.lnk"

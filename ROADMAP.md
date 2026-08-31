@@ -27,7 +27,6 @@ This roadmap describes direction, not fixed delivery dates or commitments.
 
 - improve first-run project selection and error recovery;
 - expand keyboard, focus, contrast, and screen-reader validation;
-- replace the interim mark with a final project-owned visual identity;
 - improve documentation for privacy boundaries and diagnostic sharing.
 
 ## Extensibility

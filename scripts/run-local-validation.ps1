@@ -22,6 +22,7 @@ try {
     Invoke-LocalStep "TypeScript" { npm run typecheck }
     Invoke-LocalStep "Frontend tests" { npm test }
     Invoke-LocalStep "Frontend production build" { npm run build }
+    Invoke-LocalStep "Brand asset contract" { node scripts/test-brand-assets.mjs }
 
     $Python = Join-Path $Root ".venv\Scripts\python.exe"
     if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
@@ -54,6 +55,10 @@ try {
     Invoke-LocalStep "Markdown links" { npm run docs:check }
     Invoke-LocalStep "Uninstall-entry regression tests" { .\scripts\test-uninstall-entry-filter.ps1 }
     Invoke-LocalStep "Installer-QA harness regression tests" { .\scripts\test-installed-installer-qa-harness.ps1 }
+    Invoke-LocalStep "Installer archive inspection regression tests" { .\scripts\test-installer-archive-inspection.ps1 }
+    # Tauri validates externalBin paths during cargo check. Match CI by building
+    # the authentic sidecar before any Rust/Tauri compilation step.
+    Invoke-LocalStep "Packaged sidecar build" { npm run sidecar:build }
 
     Push-Location (Join-Path $Root "apps\desktop\src-tauri")
     try {
@@ -86,7 +91,6 @@ try {
     }
 
     Invoke-LocalStep "SBOM generation" { npm run sbom:generate }
-    Invoke-LocalStep "Packaged sidecar build" { npm run sidecar:build }
     Invoke-LocalStep "Packaged sidecar authenticated startup/shutdown" { npm run sidecar:test }
     Invoke-LocalStep "Unbundled production desktop build" {
         npm --workspace @devpulse/desktop run tauri -- build --no-bundle --ci --no-sign -- --locked

@@ -2,16 +2,115 @@ param(
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [Parameter(Mandatory = $true)][string]$CommitSha,
     [Parameter(Mandatory = $true)][string]$SourceReference,
-    [Parameter(Mandatory = $true)][string]$RunnerImage,
-    [switch]$SkipPayloadInspection
+    [Parameter(Mandatory = $true)][string]$RunnerImage
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+function ConvertFrom-SevenZipSlt {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Lines
+    )
+
+    $Records = [Collections.Generic.List[object]]::new()
+    $Fields = [Collections.Specialized.OrderedDictionary]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($RawLine in $Lines) {
+        $Line = [string]$RawLine
+        if ([string]::IsNullOrWhiteSpace($Line) -or $Line -match '^\s*-{2,}\s*$') {
+            if ($Fields.Count -gt 0) {
+                $Records.Add($Fields)
+                $Fields = [Collections.Specialized.OrderedDictionary]::new([StringComparer]::OrdinalIgnoreCase)
+            }
+            continue
+        }
+        if ($Line -notmatch '^\s*([^=]+?)\s*=\s*(.*)$') { continue }
+        $Key = $Matches[1].Trim()
+        if ($Fields.Contains($Key)) {
+            throw "7-Zip reported a duplicate '$Key' field in one listing record."
+        }
+        $Fields.Add($Key, $Matches[2].Trim())
+    }
+    if ($Fields.Count -gt 0) { $Records.Add($Fields) }
+    return $Records.ToArray()
+}
+
+function Get-ValidatedInstallerPayloadExecutables {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$ArchiveOutput,
+        [Parameter(Mandatory = $true)][long]$InstallerLength,
+        [Parameter(Mandatory = $true)][string[]]$ExpectedExecutableNames
+    )
+
+    $Records = @(ConvertFrom-SevenZipSlt -Lines $ArchiveOutput)
+    $OuterArchiveRecords = @($Records | Where-Object {
+        $_.Contains("Type") -and
+        [string]::Equals([string]$_['Type'], "Nsis", [StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($OuterArchiveRecords.Count -ne 1) {
+        throw "7-Zip did not report exactly one outer NSIS archive metadata record."
+    }
+    $OuterArchiveRecord = $OuterArchiveRecords[0]
+    if (-not $OuterArchiveRecord.Contains("Physical Size")) {
+        throw "7-Zip did not report the outer NSIS archive physical size."
+    }
+    $ReportedPhysicalSize = 0L
+    if (-not [long]::TryParse(
+        [string]$OuterArchiveRecord['Physical Size'],
+        [Globalization.NumberStyles]::None,
+        [Globalization.CultureInfo]::InvariantCulture,
+        [ref]$ReportedPhysicalSize
+    ) -or $ReportedPhysicalSize -le 0) {
+        throw "7-Zip reported an invalid outer NSIS archive physical size."
+    }
+    if ($ReportedPhysicalSize -ne $InstallerLength) {
+        throw "7-Zip reported an outer NSIS archive physical size that does not match the installer."
+    }
+
+    $PayloadPaths = @($Records | Where-Object {
+        -not [object]::ReferenceEquals($_, $OuterArchiveRecord) -and $_.Contains("Path")
+    } | ForEach-Object {
+        [string]$_['Path']
+    } | Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_)
+    })
+    $PayloadExecutables = @($PayloadPaths | Where-Object {
+        [string]::Equals([IO.Path]::GetExtension($_), ".exe", [StringComparison]::OrdinalIgnoreCase)
+    })
+    foreach ($ExpectedName in $ExpectedExecutableNames) {
+        $ExpectedMatches = @($PayloadExecutables | Where-Object {
+            [string]::Equals([IO.Path]::GetFileName($_), $ExpectedName, [StringComparison]::OrdinalIgnoreCase)
+        })
+        if ($ExpectedMatches.Count -ne 1) {
+            throw "Expected exactly one payload executable named $ExpectedName; found $($ExpectedMatches.Count)."
+        }
+    }
+    $UnexpectedExecutables = @($PayloadExecutables | Where-Object {
+        $PayloadName = [IO.Path]::GetFileName($_)
+        @($ExpectedExecutableNames | Where-Object {
+            [string]::Equals($_, $PayloadName, [StringComparison]::OrdinalIgnoreCase)
+        }).Count -eq 0
+    })
+    if ($UnexpectedExecutables.Count -gt 0) {
+        throw "Unexpected executable payload: $($UnexpectedExecutables -join ', ')"
+    }
+    return $PayloadExecutables
+}
+
+function Get-RequiredSevenZip {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "The GitHub Windows image 7-Zip installation is required for payload inspection."
+    }
+    return $Path
+}
+
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Version = (Get-Content -LiteralPath (Join-Path $Root "VERSION") -Raw).Trim()
-if ($Version -ne "0.3.0-alpha.1") { throw "Installer QA is pinned to 0.3.0-alpha.1." }
+if ($Version -ne "0.3.0") { throw "Installer QA is pinned to 0.3.0." }
 $Config = Get-Content -LiteralPath (Join-Path $Root "apps\desktop\src-tauri\tauri.conf.json") -Raw | ConvertFrom-Json
 $BundleDirectory = Join-Path $Root "apps\desktop\src-tauri\target\release\bundle\nsis"
 $Installers = @(Get-ChildItem -LiteralPath $BundleDirectory -File -Filter "*.exe" | Where-Object {
@@ -54,49 +153,19 @@ if (-not $InstallerAscii.Contains("requestedExecutionLevel") -or -not $Installer
 }
 if ($InstallerAscii.Contains("requireAdministrator")) { throw "Installer requests administrator execution." }
 
-$SevenZip = "C:\Program Files\7-Zip\7z.exe"
-if (-not (Test-Path -LiteralPath $SevenZip -PathType Leaf) -and -not $SkipPayloadInspection) {
-    throw "The GitHub Windows image 7-Zip installation is required for payload inspection."
-}
+$SevenZip = Get-RequiredSevenZip -Path "C:\Program Files\7-Zip\7z.exe"
 $ExpectedMainName = "devpulse-desktop.exe"
 $ExpectedSidecarName = "devpulse-local-core.exe"
 $ExpectedSidecarSourceName = "devpulse-local-core-x86_64-pc-windows-msvc.exe"
 $ExpectedUninstallerName = "uninstall.exe"
 $ExpectedPayloadExecutableNames = @($ExpectedMainName, $ExpectedSidecarName, $ExpectedUninstallerName)
-$PayloadInspectionStatus = "passed"
 $UnexpectedExecutables = @()
-if (Test-Path -LiteralPath $SevenZip -PathType Leaf) {
-    $ArchiveOutput = @(& $SevenZip l -slt $Installer.FullName 2>&1)
-    if ($LASTEXITCODE -ne 0) { throw "7-Zip could not inspect the NSIS payload." }
-    $PayloadPaths = @($ArchiveOutput | ForEach-Object {
-        if ([string]$_ -match "^Path = (.+)$") { $Matches[1] }
-    } | Where-Object { $_ })
-    $OuterArchiveEntries = @($PayloadPaths | Where-Object {
-        [string]::Equals([System.IO.Path]::GetFullPath($_), $Installer.FullName, [System.StringComparison]::OrdinalIgnoreCase)
-    })
-    if ($OuterArchiveEntries.Count -ne 1) {
-        throw "7-Zip did not report exactly one outer installer archive entry."
-    }
-    $PayloadExecutables = @($PayloadPaths | Where-Object {
-        $_ -match "\.exe$" -and $_ -notin $OuterArchiveEntries
-    })
-    foreach ($ExpectedName in $ExpectedPayloadExecutableNames) {
-        $ExpectedMatches = @($PayloadExecutables | Where-Object {
-            [System.IO.Path]::GetFileName($_) -eq $ExpectedName
-        })
-        if ($ExpectedMatches.Count -ne 1) {
-            throw "Expected exactly one payload executable named $ExpectedName; found $($ExpectedMatches.Count)."
-        }
-    }
-    $UnexpectedExecutables = @($PayloadExecutables | Where-Object {
-        [System.IO.Path]::GetFileName($_) -notin $ExpectedPayloadExecutableNames
-    })
-    if ($UnexpectedExecutables.Count -gt 0) {
-        throw "Unexpected executable payload: $($UnexpectedExecutables -join ', ')"
-    }
-} else {
-    $PayloadInspectionStatus = "unavailable-local-7zip-not-installed"
-}
+$ArchiveOutput = @(& $SevenZip l -slt $Installer.FullName 2>&1)
+if ($LASTEXITCODE -ne 0) { throw "7-Zip could not inspect the NSIS payload." }
+$PayloadExecutables = @(Get-ValidatedInstallerPayloadExecutables `
+    -ArchiveOutput $ArchiveOutput `
+    -InstallerLength $Installer.Length `
+    -ExpectedExecutableNames $ExpectedPayloadExecutableNames)
 
 $ReleaseExecutable = Join-Path $Root "apps\desktop\src-tauri\target\release\devpulse-desktop.exe"
 $Sidecar = Join-Path $Root "apps\desktop\src-tauri\binaries\$ExpectedSidecarSourceName"
@@ -128,7 +197,7 @@ $Inspection = [ordered]@{
     startupRegistrationConfigured = $false
     automaticUpdatesConfigured = $false
     customInstallerHooksConfigured = $true
-    payloadInspectionStatus = $PayloadInspectionStatus
+    payloadInspectionStatus = "passed"
     webView2InstallMode = $Config.bundle.windows.webviewInstallMode.type
     webView2DownloadedByInstaller = $false
     offlineInstallationClaimed = $false

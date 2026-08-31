@@ -4,10 +4,11 @@
 
 | Version | Security support |
 | --- | --- |
-| `0.3.0-alpha.1` | Best-effort fixes during the alpha line |
+| `0.3.0` | Best-effort fixes for the parked keeper release |
+| `0.3.0-alpha.1` | Superseded public prerelease |
 | Earlier pre-public versions | Not supported from this repository |
 
-Alpha support may include breaking changes and does not promise a fixed response or maintenance period.
+Pre-1.0 support may include breaking changes and does not promise a fixed response or maintenance period.
 
 ## Reporting a vulnerability
 
