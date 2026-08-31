@@ -12,6 +12,12 @@ const generator = await readFile(
   resolve(root, "scripts", "generate-brand-assets.mjs"),
   "utf8",
 );
+const tauriConfig = JSON.parse(
+  await readFile(
+    resolve(root, "apps", "desktop", "src-tauri", "tauri.conf.json"),
+    "utf8",
+  ),
+);
 const iconDirectory = resolve(root, "apps", "desktop", "src-tauri", "icons");
 
 assert.match(source, /aria-label="DevPulse pulse aperture mark"/);
@@ -113,6 +119,16 @@ assert.deepEqual(
   [...new Set(icoSizes)].sort((left, right) => left - right),
   [16, 24, 32, 48, 64, 256],
   "The ICO must cover every supported Windows shell size.",
+);
+assert.equal(
+  tauriConfig.bundle.windows.nsis.installerIcon,
+  "icons/icon.ico",
+  "The NSIS installer executable must carry the DevPulse Windows icon.",
+);
+assert.equal(
+  tauriConfig.bundle.windows.nsis.uninstallerIcon,
+  "icons/icon.ico",
+  "The NSIS uninstaller must carry the DevPulse Windows icon.",
 );
 
 console.log("DevPulse brand source contract passed.");
