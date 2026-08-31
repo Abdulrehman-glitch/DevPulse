@@ -37,6 +37,9 @@ if ($CompatibilityWorkflow -match 'actions/upload-artifact@') { throw "Windows c
 if ($CompatibilityWorkflow -match '(?m)^\s{2}(?:push|pull_request|schedule)\s*:') {
     throw "Windows compatibility must not run on push, pull request, or a schedule."
 }
+if (-not $CompatibilityWorkflow.Contains("-QaRootLeaf 'DevPulse-QA-installed 文档 `${{ matrix.culture }}'")) {
+    throw "Windows compatibility must keep its alternate QA root inside the harness's dedicated DevPulse-QA namespace."
+}
 
 function Assert-Contains([string]$Text, [string]$Needle, [string]$Message) {
     if (-not $Text.Contains($Needle)) { throw $Message }
