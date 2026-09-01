@@ -136,6 +136,21 @@ function Test-LifecycleChildProcessRelationship {
     return $true
 }
 
+function Test-LifecycleUninstallResidue {
+    param(
+        [Parameter(Mandatory = $true)]$State,
+        [object[]]$OwnedAlive = @()
+    )
+
+    return [bool](
+        $State.expectedInstallDirectory.exists -or
+        $State.startMenuDirectory.exists -or
+        $State.desktopShortcut.exists -or
+        @($State.currentUserUninstallEntries).Count -ne 0 -or
+        @($OwnedAlive).Count -ne 0
+    )
+}
+
 function New-LifecycleRecorder {
     param(
         [Parameter(Mandatory = $true)][string]$Directory,

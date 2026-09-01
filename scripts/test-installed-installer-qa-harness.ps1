@@ -77,6 +77,7 @@ foreach ($Evidence in @(
 
 Assert-Contains $Harness '1..3 | ForEach-Object' "The harness no longer performs three immediate-close probes."
 Assert-Contains $Harness 'Get-UninstallerFromRegistry' "The uninstaller is no longer resolved from the exact registry entry."
+Assert-Contains $Harness 'Test-LifecycleUninstallResidue $State $OwnedAlive' "Uninstall QA no longer waits for every owned residue class to converge."
 Assert-Contains $Harness 'Remove-ValidatedQaRuntime' "Canonical QA cleanup validation is missing."
 Assert-Contains $Harness '[System.IO.FileAttributes]::ReparsePoint' "QA cleanup lost junction/symlink refusal."
 Assert-Contains $Harness 'production-appdata-contamination' "Production-AppData contamination is no longer a hard evidence event."
@@ -117,6 +118,31 @@ if (-not (Test-LifecycleProcessIdentity $IdentityMap $PID)) {
 $IdentityMap[[string]$PID] = [ordered]@{ processId = $PID; name = "process-that-does-not-exist.exe"; creationUtc = $null; executablePath = $null }
 if (Test-LifecycleProcessIdentity $IdentityMap $PID) {
     throw "Process identity regression test accepted a reused PID with a different executable."
+}
+
+$CleanUninstallState = [pscustomobject]@{
+    expectedInstallDirectory = [pscustomobject]@{ exists = $false }
+    startMenuDirectory = [pscustomobject]@{ exists = $false }
+    desktopShortcut = [pscustomobject]@{ exists = $false }
+    currentUserUninstallEntries = @()
+}
+if (Test-LifecycleUninstallResidue $CleanUninstallState @()) {
+    throw "Uninstall convergence classified a clean state as residue."
+}
+foreach ($Residue in @("expectedInstallDirectory", "startMenuDirectory", "desktopShortcut")) {
+    $DirtyUninstallState = $CleanUninstallState.PSObject.Copy()
+    $DirtyUninstallState.$Residue = [pscustomobject]@{ exists = $true }
+    if (-not (Test-LifecycleUninstallResidue $DirtyUninstallState @())) {
+        throw "Uninstall convergence ignored $Residue residue."
+    }
+}
+$RegistryResidueState = $CleanUninstallState.PSObject.Copy()
+$RegistryResidueState.currentUserUninstallEntries = @([pscustomobject]@{ displayName = "DevPulse" })
+if (-not (Test-LifecycleUninstallResidue $RegistryResidueState @())) {
+    throw "Uninstall convergence ignored registry residue."
+}
+if (-not (Test-LifecycleUninstallResidue $CleanUninstallState @(1234))) {
+    throw "Uninstall convergence ignored an owned process."
 }
 
 Write-Host "Installed installer-QA harness regression checks passed."
