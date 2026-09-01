@@ -1116,15 +1116,22 @@ function Invoke-UninstallCycle([string]$Cycle) {
     $Uninstaller = Get-UninstallerFromRegistry
     $Result = Invoke-BoundedExecutable $Uninstaller "/S" "uninstall-$Cycle" 180
     if ($Result.exitCode -ne 0) { throw "$Cycle uninstall failed with exit code $($Result.exitCode)." }
+    # NSIS may remove its program directory before its helper finishes shortcut and
+    # registry cleanup. Await convergence of every owned residue class, then keep
+    # the individual assertions below fail-closed when the bounded deadline expires.
     $Deadline = [DateTime]::UtcNow.AddSeconds(30)
-    while ((Test-Path -LiteralPath $ExpectedInstallDirectory) -and [DateTime]::UtcNow -lt $Deadline) { Start-Sleep -Milliseconds 250 }
-    $State = Get-ExactState
+    do {
+        $State = Get-ExactState
+        $OwnedAlive = @($Script:OwnedPids | Where-Object { Test-Alive $_ })
+        $ResiduePresent = Test-LifecycleUninstallResidue $State $OwnedAlive
+        if (-not $ResiduePresent -or [DateTime]::UtcNow -ge $Deadline) { break }
+        Start-Sleep -Milliseconds 250
+    } while ($true)
     Assert-NoForbiddenState $State "$Cycle uninstall"
     if ($State.expectedInstallDirectory.exists) { throw "$Cycle uninstall left the installation directory." }
     if ($State.startMenuDirectory.exists) { throw "$Cycle uninstall left the Start Menu directory." }
     if ($State.desktopShortcut.exists) { throw "$Cycle uninstall left a Desktop shortcut." }
     if ($State.currentUserUninstallEntries.Count -ne 0) { throw "$Cycle uninstall left its registry entry." }
-    $OwnedAlive = @($Script:OwnedPids | Where-Object { Test-Alive $_ })
     if ($OwnedAlive.Count -gt 0) { throw "$Cycle uninstall left an owned process running." }
     $Entry = [ordered]@{
         cycle = $Cycle
